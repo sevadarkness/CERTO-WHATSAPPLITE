@@ -1,0 +1,26 @@
+name: CI - Rede Alabama
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+jobs:
+  php-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: Validar sintaxe PHP
+        run: |
+          find 01_backend_painel_php 02_whatsapp_automation_engine 03_ai_llm_platform 04_marketing_ai_strategy \
+            -name '*.php' \
+            -not -path '*/uploads/*' \
+            -print0 | xargs -0 -n 1 php -l

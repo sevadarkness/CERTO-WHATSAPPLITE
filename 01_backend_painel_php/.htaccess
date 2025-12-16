@@ -1,0 +1,23 @@
+DirectoryIndex login.php
+
+# ------------------------------------------------------------
+# Rede Alabama - Hardening básico para produção
+# ------------------------------------------------------------
+
+Options -Indexes
+
+# Bloqueia arquivos sensíveis (evita leak acidental via HTTP)
+<FilesMatch "^(?:\.env(?:\..*)?|config\.json|composer\.(?:json|lock)|phpunit\.xml|\.DS_Store|error_log)$">
+    Require all denied
+</FilesMatch>
+
+# Bloqueia scripts/artefatos que não devem ser servidos
+# (inclui variações comuns como .bak2, .bak2025, etc.)
+<FilesMatch "\.(?:sql|sh|bak\d*|old|orig|swp)$">
+    Require all denied
+</FilesMatch>
+
+# Bloqueia diretórios internos (código, migrações, logs, testes)
+RedirectMatch 403 ^/(?:app|config|database|tests|logs|metrics_storage)(?:/|$)
+
+# OBS: para uploads, há um .htaccess dedicado em /uploads

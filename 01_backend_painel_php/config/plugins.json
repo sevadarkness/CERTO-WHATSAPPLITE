@@ -1,0 +1,8 @@
+{
+  "plugins": {
+    "example_hello": {
+      "path": "plugins/ExampleHelloPlugin",
+      "class": "RedeAlabama\\Plugins\\ExampleHelloPlugin\\Plugin"
+    }
+  }
+}

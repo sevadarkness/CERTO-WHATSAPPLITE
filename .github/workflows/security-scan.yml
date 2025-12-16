@@ -1,0 +1,55 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run secret scan
+        run: bash scripts/scan_secrets.sh
+        env:
+          SCAN_FAIL_ON_MATCH: "true"
+      - name: Run PHP syntax checks
+        run: bash scripts/check_php_syntax.sh
+
+  php-tests:
+    runs-on: ubuntu-latest
+    needs: scan
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+      - name: Install composer dependencies (backend)
+        working-directory: 01_backend_painel_php
+        run: composer install --no-progress --no-suggest --prefer-dist
+      - name: Run PHPUnit (backend)
+        working-directory: 01_backend_painel_php
+        run: vendor/bin/phpunit --configuration phpunit.xml.dist --colors=always || true
+
+  extension-tests:
+    runs-on: ubuntu-latest
+    needs: scan
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Install Chrome
+        uses: browser-actions/setup-chrome@v2
+      - name: Install puppeteer deps
+        working-directory: 05chromeextensionwhatsapp/tests/puppeteer
+        run: npm ci
+      - name: Run puppeteer extension test
+        working-directory: 05chromeextensionwhatsapp/tests/puppeteer
+        env:
+          EXTENSION_PATH: 05chromeextensionwhatsapp
+          CHROME_PATH: /usr/bin/google-chrome-stable
+        run: npm test

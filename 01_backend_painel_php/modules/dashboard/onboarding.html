@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>🚀 Bem-vindo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      background: linear-gradient(135deg, #1d1d1d, #000);
+      color: white;
+      font-family: sans-serif;
+      text-align: center;
+      padding: 2rem;
+    }
+    h1 {
+      font-size: 2rem;
+      margin-top: 2rem;
+      animation: fadeIn 2s ease-in-out;
+    }
+    img.qr {
+      margin-top: 2rem;
+      width: 180px;
+    }
+    button {
+      padding: 1rem 2rem;
+      font-size: 1rem;
+      margin-top: 2rem;
+      border: none;
+      background: #ff5722;
+      color: white;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+
+<script>
+const lang = navigator.language.startsWith("pt") ? "pt" : "en";
+const textos = {
+  pt: {
+    titulo: "🚀 Bem-vindo à Rede Alabama",
+    botao: "Entrar no Painel"
+  },
+  en: {
+    titulo: "🚀 Welcome to Rede Alabama",
+    botao: "Enter the Dashboard"
+  }
+};
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("welcome").innerText = textos[lang].titulo;
+  document.querySelector("button").innerText = textos[lang].botao;
+});
+</script>
+</head>
+<body>
+  <h1 id="welcome">🚀 Bem-vindo à Rede Alabama</h1>
+  <p>Você pode instalar o app, ativar notificações e acessar seu painel diretamente no celular.</p>
+  <img src="https://api.qrserver.com/v1/create-qr-code/?data=https://painel.redealabama.com&size=200x200" class="qr" alt="QR Code de Instalação">
+  <br>
+  <button onclick="window.location.href='dashboard_analytics.php'">Entrar no Painel</button>
+</body>
+</html>

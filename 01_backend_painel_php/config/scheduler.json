@@ -1,0 +1,19 @@
+{
+  "tasks": [
+    {
+      "name": "WhatsApp Bulk Worker",
+      "command": "php whatsapp_contacts_bulk_worker.php",
+      "enabled": true
+    },
+    {
+      "name": "Automation Runner",
+      "command": "php cli/automation_runner.php",
+      "enabled": true
+    },
+    {
+      "name": "Cleanup Old Logs",
+      "command": "find logs/ -name '*.log' -mtime +30 -delete",
+      "enabled": false
+    }
+  ]
+}

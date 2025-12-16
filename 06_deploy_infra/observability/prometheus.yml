@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'redealabama_app'
+    static_configs:
+      - targets: ['app:80']
+    metrics_path: /metrics.php
+
+  - job_name: 'otel_collector'
+    static_configs:
+      - targets: ['otel-collector:9464']

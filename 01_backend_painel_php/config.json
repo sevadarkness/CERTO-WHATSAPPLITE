@@ -1,0 +1,17 @@
+{
+  "database": {
+    "host": "127.0.0.1",
+    "username": "redealabama",
+    "password": "",
+    "dbname": "redealabama"
+  },
+  "site": {
+    "base_url": "https://seu-dominio.com"
+  },
+  "app": {
+    "name": "Rede Alabama",
+    "env": "prod",
+    "debug": false
+  },
+  "notes": "Arquivo sanitizado para deploy seguro. Configure credenciais reais via .env (DB_HOST/DB_USERNAME/DB_PASSWORD/DB_DATABASE)."
+}

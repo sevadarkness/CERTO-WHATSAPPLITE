@@ -1,0 +1,8 @@
+/* content/content.css - minimal host styling */
+#whl-root{
+  position: fixed;
+  z-index: 2147483647;
+  right: 18px;
+  bottom: 18px;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+}

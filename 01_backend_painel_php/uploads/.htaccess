@@ -1,0 +1,11 @@
+Options -Indexes
+
+# Impede execução de arquivos PHP no diretório de uploads
+<FilesMatch "\.(?:php|phtml|phar|php\d+)$">
+    Require all denied
+</FilesMatch>
+
+# (Opcional) se mod_php estiver ativo, desliga o engine PHP aqui
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>

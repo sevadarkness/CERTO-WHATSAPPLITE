@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Login - Rede Alabama</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js">
+fetch('/modules/auth/session.php', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email: result.user.email, nome: result.user.displayName })
+});
+</script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js">
+fetch('/modules/auth/session.php', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email: result.user.email, nome: result.user.displayName })
+});
+</script>
+  <style>
+    body {
+      background: linear-gradient(to right, #0f0c29, #302b63, #24243e);
+      color: white;
+      font-family: sans-serif;
+      text-align: center;
+      padding: 2rem;
+    }
+    h1 {
+      font-size: 1.8rem;
+    }
+    button {
+      background: #ff5722;
+      color: white;
+      border: none;
+      padding: 1rem 2rem;
+      font-size: 1rem;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>🚪 Entrar no Painel</h1>
+  <p>Use seu login do Google para acessar o ambiente completo.</p>
+  <button onclick="login()">🔐 Entrar com Google</button>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "FIREBASE_API_KEY",
+      authDomain: "yourproject.firebaseapp.com",
+      projectId: "yourproject",
+      appId: "FIREBASE_APP_ID"
+    };
+    firebase.initializeApp(firebaseConfig);
+
+    function login() {
+      firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider())
+        .then(result => {
+          localStorage.setItem("user", JSON.stringify(result.user));
+          window.location.href = "/modules/dashboard/dashboard_analytics.php";
+        }).catch(err => alert("Erro no login: " + err.message));
+    }
+  
+fetch('/modules/auth/session.php', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email: result.user.email, nome: result.user.displayName })
+});
+</script>
+</body>
+</html>

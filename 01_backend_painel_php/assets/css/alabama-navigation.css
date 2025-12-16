@@ -1,0 +1,662 @@
+/**
+ * Alabama Navigation System CSS
+ * Sidebar + Global Search + Responsive Layout
+ * Compatible with Alabama Design System
+ */
+
+/* ========================================
+   1. SIDEBAR LAYOUT
+   ======================================== */
+
+.alabama-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px;
+    height: 100vh;
+    background: linear-gradient(180deg, var(--al-bg-surface) 0%, var(--al-bg-base) 100%);
+    border-right: 1px solid var(--al-border);
+    display: flex;
+    flex-direction: column;
+    z-index: 1000;
+    transition: var(--al-transition-slow);
+    overflow: hidden;
+}
+
+.alabama-sidebar.mini {
+    width: 70px;
+}
+
+.alabama-sidebar.mini .alabama-sidebar-brand-text,
+.alabama-sidebar.mini .alabama-category-label,
+.alabama-sidebar.mini .alabama-item-label,
+.alabama-sidebar.mini .alabama-badge,
+.alabama-sidebar.mini .alabama-favorite-btn,
+.alabama-sidebar.mini .alabama-sidebar-collapse-btn span,
+.alabama-sidebar.mini .alabama-search-trigger span {
+    opacity: 0;
+    display: none;
+}
+
+.alabama-sidebar.mini .alabama-category-arrow {
+    display: none;
+}
+
+/* ========================================
+   2. SIDEBAR HEADER
+   ======================================== */
+
+.alabama-sidebar-header {
+    display: flex;
+    align-items: center;
+    gap: var(--al-space-md);
+    padding: var(--al-space-lg);
+    border-bottom: 1px solid var(--al-border);
+    background: linear-gradient(90deg, rgba(139, 92, 246, 0.1), transparent);
+}
+
+.alabama-sidebar-toggle {
+    background: transparent;
+    border: none;
+    color: var(--al-text-secondary);
+    font-size: 1.25rem;
+    cursor: pointer;
+    padding: var(--al-space-sm);
+    border-radius: var(--al-radius-sm);
+    transition: var(--al-transition);
+}
+
+.alabama-sidebar-toggle:hover {
+    background: var(--al-bg-hover);
+    color: var(--al-primary-hover);
+}
+
+.alabama-sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: var(--al-space-sm);
+    font-weight: 800;
+    font-size: 1.25rem;
+}
+
+.alabama-sidebar-brand-text {
+    background: linear-gradient(135deg, var(--al-primary), var(--al-accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    transition: var(--al-transition);
+}
+
+/* ========================================
+   3. SIDEBAR SEARCH
+   ======================================== */
+
+.alabama-sidebar-search {
+    padding: var(--al-space-md);
+}
+
+.alabama-search-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: var(--al-space-sm);
+    padding: var(--al-space-md);
+    background: var(--al-bg-elevated);
+    border: 1px solid var(--al-border-light);
+    border-radius: var(--al-radius-md);
+    color: var(--al-text-muted);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: var(--al-transition);
+}
+
+.alabama-search-trigger:hover {
+    background: var(--al-bg-hover);
+    border-color: var(--al-border-hover);
+    color: var(--al-text-secondary);
+}
+
+.alabama-search-trigger i {
+    font-size: 1rem;
+}
+
+/* ========================================
+   4. SIDEBAR NAVIGATION
+   ======================================== */
+
+.alabama-sidebar-nav {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: var(--al-space-sm) 0;
+}
+
+.alabama-sidebar-nav::-webkit-scrollbar {
+    width: 6px;
+}
+
+.alabama-sidebar-nav::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.alabama-sidebar-nav::-webkit-scrollbar-thumb {
+    background: var(--al-border);
+    border-radius: var(--al-radius-full);
+}
+
+.alabama-sidebar-nav::-webkit-scrollbar-thumb:hover {
+    background: var(--al-border-hover);
+}
+
+/* ========================================
+   5. SIDEBAR CATEGORIES
+   ======================================== */
+
+.alabama-sidebar-category {
+    margin-bottom: var(--al-space-xs);
+}
+
+.alabama-category-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: var(--al-space-md);
+    padding: var(--al-space-md) var(--al-space-lg);
+    background: transparent;
+    border: none;
+    color: var(--al-text-secondary);
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    transition: var(--al-transition);
+    position: relative;
+}
+
+.alabama-category-toggle:hover {
+    background: rgba(139, 92, 246, 0.08);
+    color: var(--al-text-primary);
+}
+
+.alabama-category-toggle i:first-child {
+    font-size: 1rem;
+    width: 20px;
+    text-align: center;
+}
+
+.alabama-category-label {
+    flex: 1;
+    transition: var(--al-transition);
+}
+
+.alabama-category-arrow {
+    font-size: 0.75rem;
+    transition: transform 0.3s ease;
+}
+
+.alabama-sidebar-category.expanded .alabama-category-arrow {
+    transform: rotate(180deg);
+}
+
+/* ========================================
+   6. SIDEBAR MENU ITEMS
+   ======================================== */
+
+.alabama-category-items {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.alabama-sidebar-category.expanded .alabama-category-items {
+    max-height: 1000px;
+}
+
+.alabama-menu-item {
+    display: flex;
+    align-items: center;
+    gap: var(--al-space-md);
+    padding: var(--al-space-md) var(--al-space-lg) var(--al-space-md) calc(var(--al-space-lg) + 32px);
+    color: var(--al-text-secondary);
+    text-decoration: none;
+    font-size: 0.875rem;
+    transition: var(--al-transition);
+    position: relative;
+    border-left: 3px solid transparent;
+}
+
+.alabama-menu-item:hover {
+    background: rgba(139, 92, 246, 0.08);
+    color: var(--al-text-primary);
+    border-left-color: transparent;
+}
+
+.alabama-menu-item.active {
+    background: rgba(139, 92, 246, 0.15);
+    color: var(--al-primary-hover);
+    border-left-color: var(--al-primary);
+    font-weight: 600;
+}
+
+.alabama-menu-item.highlight {
+    background: linear-gradient(90deg, rgba(34, 197, 94, 0.15), transparent);
+    color: var(--al-success);
+    font-weight: 600;
+}
+
+.alabama-menu-item.highlight:hover {
+    background: linear-gradient(90deg, rgba(34, 197, 94, 0.25), transparent);
+}
+
+.alabama-menu-item i:first-child {
+    width: 16px;
+    text-align: center;
+}
+
+.alabama-item-label {
+    flex: 1;
+    transition: var(--al-transition);
+}
+
+/* ========================================
+   7. BADGES
+   ======================================== */
+
+.alabama-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 var(--al-space-xs);
+    background: var(--al-primary);
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 700;
+    border-radius: var(--al-radius-full);
+    transition: var(--al-transition);
+}
+
+.alabama-badge:empty {
+    display: none;
+}
+
+/* ========================================
+   8. FAVORITE BUTTON
+   ======================================== */
+
+.alabama-favorite-btn {
+    opacity: 0;
+    background: transparent;
+    border: none;
+    color: var(--al-text-muted);
+    font-size: 0.875rem;
+    cursor: pointer;
+    padding: var(--al-space-xs);
+    transition: var(--al-transition);
+}
+
+.alabama-menu-item:hover .alabama-favorite-btn {
+    opacity: 1;
+}
+
+.alabama-favorite-btn:hover {
+    color: var(--al-warning);
+}
+
+.alabama-favorite-btn[data-favorited="true"] {
+    opacity: 1;
+    color: var(--al-warning);
+}
+
+.alabama-favorite-btn[data-favorited="true"] i::before {
+    content: "\f005"; /* fas fa-star */
+}
+
+/* ========================================
+   9. SIDEBAR FOOTER
+   ======================================== */
+
+.alabama-sidebar-footer {
+    padding: var(--al-space-md);
+    border-top: 1px solid var(--al-border);
+}
+
+.alabama-sidebar-collapse-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--al-space-sm);
+    padding: var(--al-space-md);
+    background: var(--al-bg-elevated);
+    border: 1px solid var(--al-border-light);
+    border-radius: var(--al-radius-md);
+    color: var(--al-text-secondary);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: var(--al-transition);
+}
+
+.alabama-sidebar-collapse-btn:hover {
+    background: var(--al-bg-hover);
+    border-color: var(--al-border-hover);
+    color: var(--al-primary-hover);
+}
+
+/* ========================================
+   10. MAIN CONTENT WRAPPER
+   ======================================== */
+
+.alabama-main-wrapper {
+    margin-left: 280px;
+    min-height: 100vh;
+    transition: var(--al-transition-slow);
+}
+
+.alabama-sidebar.mini ~ .alabama-main-wrapper {
+    margin-left: 70px;
+}
+
+.alabama-content {
+    padding: var(--al-space-xl);
+    max-width: 1600px;
+}
+
+/* ========================================
+   11. GLOBAL SEARCH MODAL
+   ======================================== */
+
+.alabama-search-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 15vh;
+    z-index: 2000;
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.alabama-search-modal-content {
+    width: 90%;
+    max-width: 640px;
+    background: var(--al-bg-surface);
+    border: 1px solid var(--al-border);
+    border-radius: var(--al-radius-lg);
+    box-shadow: var(--al-shadow-xl);
+    overflow: hidden;
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ========================================
+   12. SEARCH HEADER
+   ======================================== */
+
+.alabama-search-header {
+    padding: var(--al-space-lg);
+    border-bottom: 1px solid var(--al-border);
+}
+
+.alabama-search-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: var(--al-space-md);
+}
+
+.alabama-search-input-wrapper > i {
+    color: var(--al-text-muted);
+    font-size: 1.25rem;
+}
+
+.alabama-search-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--al-text-primary);
+    font-size: 1.125rem;
+    outline: none;
+}
+
+.alabama-search-input::placeholder {
+    color: var(--al-text-muted);
+}
+
+.alabama-search-close {
+    background: transparent;
+    border: none;
+    color: var(--al-text-muted);
+    font-size: 1.25rem;
+    cursor: pointer;
+    padding: var(--al-space-sm);
+    border-radius: var(--al-radius-sm);
+    transition: var(--al-transition);
+}
+
+.alabama-search-close:hover {
+    background: var(--al-bg-hover);
+    color: var(--al-text-primary);
+}
+
+/* ========================================
+   13. SEARCH BODY
+   ======================================== */
+
+.alabama-search-body {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.alabama-search-body::-webkit-scrollbar {
+    width: 8px;
+}
+
+.alabama-search-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.alabama-search-body::-webkit-scrollbar-thumb {
+    background: var(--al-border);
+    border-radius: var(--al-radius-full);
+}
+
+.alabama-search-results {
+    padding: var(--al-space-sm);
+}
+
+.alabama-search-result-item {
+    display: flex;
+    align-items: center;
+    gap: var(--al-space-md);
+    padding: var(--al-space-md);
+    border-radius: var(--al-radius-md);
+    color: var(--al-text-secondary);
+    text-decoration: none;
+    transition: var(--al-transition);
+    cursor: pointer;
+}
+
+.alabama-search-result-item:hover,
+.alabama-search-result-item.selected {
+    background: rgba(139, 92, 246, 0.15);
+    color: var(--al-text-primary);
+}
+
+.alabama-search-result-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--al-bg-elevated);
+    border-radius: var(--al-radius-md);
+    color: var(--al-primary);
+    font-size: 1.125rem;
+}
+
+.alabama-search-result-item:hover .alabama-search-result-icon {
+    background: var(--al-primary);
+    color: white;
+}
+
+.alabama-search-result-content {
+    flex: 1;
+}
+
+.alabama-search-result-label {
+    font-weight: 600;
+    font-size: 0.9375rem;
+    margin-bottom: 2px;
+}
+
+.alabama-search-result-category {
+    font-size: 0.8125rem;
+    color: var(--al-text-muted);
+}
+
+/* ========================================
+   14. SEARCH EMPTY STATE
+   ======================================== */
+
+.alabama-search-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--al-space-2xl);
+    color: var(--al-text-muted);
+    text-align: center;
+}
+
+.alabama-search-empty i {
+    font-size: 3rem;
+    margin-bottom: var(--al-space-lg);
+    opacity: 0.5;
+}
+
+.alabama-search-empty p {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin-bottom: var(--al-space-sm);
+}
+
+.alabama-search-empty small {
+    font-size: 0.875rem;
+}
+
+/* ========================================
+   15. SEARCH FOOTER
+   ======================================== */
+
+.alabama-search-footer {
+    padding: var(--al-space-md) var(--al-space-lg);
+    border-top: 1px solid var(--al-border);
+    background: rgba(139, 92, 246, 0.05);
+}
+
+.alabama-search-shortcuts {
+    display: flex;
+    gap: var(--al-space-lg);
+    font-size: 0.8125rem;
+    color: var(--al-text-muted);
+}
+
+.alabama-search-shortcuts kbd {
+    display: inline-block;
+    padding: 2px 6px;
+    background: var(--al-bg-elevated);
+    border: 1px solid var(--al-border);
+    border-radius: 4px;
+    font-family: var(--al-font-mono);
+    font-size: 0.75rem;
+    margin: 0 2px;
+}
+
+/* ========================================
+   16. SIDEBAR OVERLAY (MOBILE)
+   ======================================== */
+
+.alabama-sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+}
+
+/* ========================================
+   17. RESPONSIVE DESIGN
+   ======================================== */
+
+@media (max-width: 1024px) {
+    .alabama-sidebar {
+        transform: translateX(-100%);
+    }
+    
+    .alabama-sidebar.open {
+        transform: translateX(0);
+    }
+    
+    .alabama-sidebar.open ~ .alabama-sidebar-overlay {
+        display: block;
+    }
+    
+    .alabama-main-wrapper {
+        margin-left: 0;
+    }
+    
+    .alabama-sidebar.mini ~ .alabama-main-wrapper {
+        margin-left: 0;
+    }
+}
+
+@media (max-width: 768px) {
+    .alabama-content {
+        padding: var(--al-space-lg);
+    }
+    
+    .alabama-search-modal {
+        padding-top: 10vh;
+    }
+    
+    .alabama-search-modal-content {
+        width: 95%;
+    }
+}
+
+@media (max-width: 480px) {
+    .alabama-content {
+        padding: var(--al-space-md);
+    }
+    
+    .alabama-search-input {
+        font-size: 1rem;
+    }
+}

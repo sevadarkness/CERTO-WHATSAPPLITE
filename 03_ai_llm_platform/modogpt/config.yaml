@@ -1,0 +1,19 @@
+name: Local Config (modogpt base)
+version: 1.0.0
+schema: v1
+models:
+  - name: GPT-4o
+    provider: openai
+    model: gpt-4o
+    # NOTE: do NOT commit secrets. Use environment variables instead.
+    apiKey: ${OPENAI_API_KEY_GPT4O}
+  - name: GPT-5 Codex
+    provider: openai
+    model: gpt-5-codex
+    apiKey: ${OPENAI_API_KEY_GPT5_CODEX}
+  - name: GPT-5
+    provider: openai
+    model: gpt-5
+    apiKey: ${OPENAI_API_KEY_GPT5}
+
+# Usage: copy `.env.example` to `.env.local` and fill values, or set system env vars.

@@ -1,0 +1,254 @@
+/**
+ * Alabama Page Overrides v2.0 (merged)
+ * Automatic override system to ensure premium design applies to all existing pages
+ * Bridges legacy Bootstrap (3/4/5) with Alabama Design System
+ *
+ * NOTA: uso extensivo de !important é intencional para sobrescrever páginas legacy
+ */
+
+/* ========================================
+   GLOBAL OVERRIDES
+   ======================================== */
+
+/* Body */
+body,
+body:not(.al-body) {
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    background: radial-gradient(circle at top, #111827 0%, #030014 45%, #020617 100%) !important;
+    color: var(--al-text-primary, #e5e7eb) !important;
+    min-height: 100vh;
+}
+
+/* Containers */
+.container,
+.container-fluid {
+    padding: var(--al-space-lg, 1.5rem);
+}
+
+/* ========================================
+   CARDS & PANELS (Bootstrap legacy)
+   ======================================== */
+
+.card:not(.al-card),
+.compact-card,
+.panel,
+.panel-default {
+    background: linear-gradient(145deg, var(--al-bg-surface, #12122a), var(--al-bg-base, #0a0a1a)) !important;
+    border: 1px solid var(--al-border, rgba(139, 92, 246, 0.2)) !important;
+    border-radius: var(--al-radius-lg, 0.75rem) !important;
+    box-shadow: var(--al-shadow-lg, 0 18px 40px rgba(15, 23, 42, 0.8)) !important;
+    color: var(--al-text-primary, #e5e7eb) !important;
+    margin-bottom: var(--al-space-lg, 1.5rem);
+}
+
+.card-header:not(.al-card-header),
+.panel-heading {
+    background: linear-gradient(
+        90deg,
+        rgba(139, 92, 246, 0.15),
+        rgba(59, 130, 246, 0.1)
+    ) !important;
+    border-bottom: 1px solid var(--al-border, rgba(139, 92, 246, 0.2)) !important;
+    font-weight: 600 !important;
+    color: var(--al-text-primary, #e5e7eb) !important;
+    padding: var(--al-space-lg, 1.5rem) !important;
+}
+
+.card-body:not(.al-card-body),
+.panel-body {
+    color: var(--al-text-primary, #e5e7eb) !important;
+    padding: var(--al-space-lg, 1.5rem) !important;
+}
+
+.card-footer:not(.al-card-footer) {
+    background: rgba(15, 23, 42, 0.5) !important;
+    border-top: 1px solid rgba(49, 46, 129, 0.3) !important;
+}
+
+/* ========================================
+   BUTTON OVERRIDES
+   ======================================== */
+
+.btn {
+    border-radius: var(--al-radius-md, 0.5rem) !important;
+    font-weight: 600 !important;
+    padding: 0.75rem 1.5rem !important;
+    transition: all 0.2s ease !important;
+    border: none !important;
+}
+
+.btn-primary:not(.al-btn) {
+    background: linear-gradient(135deg, #8b5cf6, #4c1d95) !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 14px rgba(139, 92, 246, 0.35) !important;
+}
+
+.btn-primary:not(.al-btn):hover {
+    background: linear-gradient(135deg, #a855f7, #5b21b6) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(139, 92, 246, 0.55) !important;
+}
+
+.btn-success:not(.al-btn) {
+    background: linear-gradient(135deg, #4ade80, #22c55e) !important;
+    color: #ffffff !important;
+}
+
+.btn-danger:not(.al-btn) {
+    background: linear-gradient(135deg, #f97373, #ef4444) !important;
+    color: #ffffff !important;
+}
+
+.btn-warning:not(.al-btn) {
+    background: linear-gradient(135deg, #fbbf24, #f59e0b) !important;
+    color: #111827 !important;
+}
+
+.btn-info:not(.al-btn) {
+    background: linear-gradient(135deg, #60a5fa, #3b82f6) !important;
+    color: #ffffff !important;
+}
+
+.btn-secondary:not(.al-btn) {
+    background: linear-gradient(135deg, #22d3ee, #0891b2) !important;
+    color: #ffffff !important;
+}
+
+/* ========================================
+   FORMS
+   ======================================== */
+
+.form-control:not(.al-input),
+.form-select:not(.al-select),
+textarea.form-control:not(.al-textarea) {
+    background-color: var(--al-bg-elevated, rgba(15, 23, 42, 0.95)) !important;
+    border: 1px solid var(--al-border, rgba(139, 92, 246, 0.2)) !important;
+    color: var(--al-text-primary, #e5e7eb) !important;
+    border-radius: var(--al-radius-md, 0.5rem) !important;
+}
+
+.form-control:focus,
+.form-select:focus,
+textarea:focus {
+    background-color: var(--al-bg-hover, rgba(15, 23, 42, 1)) !important;
+    border-color: #8b5cf6 !important;
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2) !important;
+    outline: none !important;
+}
+
+/* ========================================
+   TABLES
+   ======================================== */
+
+.table:not(.al-table) {
+    color: var(--al-text-primary, #e5e7eb) !important;
+}
+
+.table:not(.al-table) thead th {
+    background: linear-gradient(90deg, #111827, #1f2937) !important;
+    border-bottom: 2px solid #312e81 !important;
+    color: #e5e7eb !important;
+    font-weight: 600 !important;
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(139, 92, 246, 0.03) !important;
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(139, 92, 246, 0.15) !important;
+}
+
+/* ========================================
+   ALERTS
+   ======================================== */
+
+.alert {
+    border-radius: var(--al-radius-md, 0.75rem) !important;
+    border: 1px solid !important;
+    background-color: rgba(15, 23, 42, 0.92) !important;
+}
+
+.alert-success {
+    background: rgba(34, 197, 94, 0.1) !important;
+    border-color: #22c55e !important;
+    color: #22c55e !important;
+}
+
+.alert-danger {
+    background: rgba(239, 68, 68, 0.1) !important;
+    border-color: #ef4444 !important;
+    color: #ef4444 !important;
+}
+
+.alert-warning {
+    background: rgba(245, 158, 11, 0.1) !important;
+    border-color: #f59e0b !important;
+    color: #f59e0b !important;
+}
+
+.alert-info {
+    background: rgba(6, 182, 212, 0.1) !important;
+    border-color: #06b6d4 !important;
+    color: #06b6d4 !important;
+}
+
+.alert-primary {
+    background: rgba(139, 92, 246, 0.1) !important;
+    border-color: #8b5cf6 !important;
+    color: #a855f7 !important;
+}
+
+/* ========================================
+   FIXES FOR LEGACY ISSUES
+   ======================================== */
+
+/* Force dark backgrounds if white slips through */
+[style*="background: white"],
+[style*="background-color: white"],
+[style*="background: #fff"],
+[style*="background-color: #ffffff"] {
+    background: linear-gradient(145deg, var(--al-bg-surface, #12122a), var(--al-bg-base, #0a0a1a)) !important;
+    color: var(--al-text-primary, #e5e7eb) !important;
+}
+
+/* Force readable text */
+[style*="color: black"],
+[style*="color: #000"],
+[style*="color: #000000"] {
+    color: var(--al-text-primary, #e5e7eb) !important;
+}
+
+/* ========================================
+   RESPONSIVE
+   ======================================== */
+
+@media (max-width: 768px) {
+    .container,
+    .container-fluid {
+        padding: var(--al-space-md, 1rem);
+    }
+
+    .card,
+    .compact-card {
+        margin-bottom: var(--al-space-md, 1rem);
+    }
+
+    .card-header,
+    .card-body {
+        padding: var(--al-space-md, 1rem) !important;
+    }
+
+    .table-sm th,
+    .table-sm td {
+        padding: var(--al-space-xs, 0.25rem) var(--al-space-sm, 0.5rem) !important;
+        font-size: 0.8rem !important;
+    }
+}
+
+@media (max-width: 576px) {
+    .btn {
+        padding: 0.625rem 1.25rem !important;
+        font-size: 0.875rem !important;
+    }
+}

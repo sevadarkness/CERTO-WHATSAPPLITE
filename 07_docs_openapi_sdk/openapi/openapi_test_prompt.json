@@ -1,0 +1,243 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Rede Alabama - Test Prompt API",
+    "version": "1.0.1",
+    "description": "Endpoint simples para testar o LLM configurado no painel administrativo.\n\nObservação: a API do painel padroniza respostas via ApiResponse:\n{ ok, data, error, meta }.\n\nEste endpoint não exige login, mas se houver sessão ativa ela pode ser usada para rate-limit por tenant."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000",
+      "description": "Docker/local (padrão)"
+    },
+    {
+      "url": "{scheme}://{host}",
+      "description": "Servidor customizado",
+      "variables": {
+        "scheme": {
+          "default": "https",
+          "enum": [
+            "http",
+            "https"
+          ]
+        },
+        "host": {
+          "default": "localhost:8000"
+        }
+      }
+    }
+  ],
+  "paths": {
+    "/api/test_prompt.php": {
+      "post": {
+        "summary": "Gera uma resposta do LLM a partir de um prompt",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestPromptRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resposta gerada pelo LLM",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestPromptSuccess"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Erro de entrada (JSON inválido ou campo obrigatório ausente)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiFailure"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Método inválido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiFailure"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiFailure"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erro interno ao chamar o LLM",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiFailure"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApiMeta": {
+        "type": "object",
+        "description": "Metadados opcionais (pode ser objeto vazio).",
+        "additionalProperties": true
+      },
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "ApiSuccess": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {},
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        },
+        "required": [
+          "ok",
+          "data",
+          "error",
+          "meta"
+        ],
+        "additionalProperties": false
+      },
+      "ApiFailure": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "data": {
+            "type": "null"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        },
+        "required": [
+          "ok",
+          "data",
+          "error",
+          "meta"
+        ],
+        "additionalProperties": false
+      },
+      "ApiResponse": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccess"
+          },
+          {
+            "$ref": "#/components/schemas/ApiFailure"
+          }
+        ]
+      },
+      "TestPromptRequest": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string"
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 2
+          },
+          "max_tokens": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "model": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "additionalProperties": false
+      },
+      "TestPromptData": {
+        "type": "object",
+        "properties": {
+          "answer": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "TestPromptSuccess": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccess"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/TestPromptData"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

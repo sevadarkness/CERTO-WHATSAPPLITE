@@ -1,0 +1,22 @@
+# Ignore local envs for modogpt and others
+/03_ai_llm_platform/modogpt/.env
+
+# Backend env (nunca versionar segredos)
+/01_backend_painel_php/.env
+/01_backend_painel_php/.env.*
+
+# Artefatos de runtime
+/01_backend_painel_php/logs/
+/01_backend_painel_php/metrics_storage/
+/01_backend_painel_php/tmp/
+
+# Dependências
+/01_backend_painel_php/vendor/
+/03_ai_llm_platform/modogpt/.env.local
+
+# Node / build
+node_modules/
+dist/
+
+# OS
+.DS_Store

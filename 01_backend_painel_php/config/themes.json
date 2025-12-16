@@ -1,0 +1,9 @@
+{
+  "current": "default",
+  "themes": {
+    "default": {
+      "label": "Tema Padrão",
+      "path": "themes/default"
+    }
+  }
+}

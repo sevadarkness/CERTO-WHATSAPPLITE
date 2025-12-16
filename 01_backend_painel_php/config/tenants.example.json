@@ -1,0 +1,8 @@
+{
+  "hosts": {
+    "adm.redealabama.com": 1,
+    "cliente1.redealabama.com": 10,
+    "cliente2.redealabama.com": 20
+  },
+  "notes": "Mapeamento host -> tenant_id. Copie para tenants.json e ajuste conforme os domínios reais."
+}

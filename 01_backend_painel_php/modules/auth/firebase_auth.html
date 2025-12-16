@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Login via Google</title></head>
+<body>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "FIREBASE_API_KEY",
+  authDomain: "yourproject.firebaseapp.com",
+  projectId: "yourproject",
+  appId: "FIREBASE_APP_ID"
+};
+firebase.initializeApp(firebaseConfig);
+firebase.auth().onAuthStateChanged(user => {
+  if (user) {
+    document.body.innerHTML = `<h2>Olá, ${user.displayName}</h2><p>Autenticado com Google!</p>`;
+  } else {
+    firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider());
+  }
+});
+</script>
+</body></html>

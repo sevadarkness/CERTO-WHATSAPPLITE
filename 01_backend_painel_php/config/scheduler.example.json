@@ -1,0 +1,16 @@
+{
+  "tasks": [
+    {
+      "name": "Flow Worker",
+      "command": "php whatsapp_flow_worker.php"
+    },
+    {
+      "name": "Bulk WhatsApp Worker",
+      "command": "php whatsapp_contacts_bulk_worker.php"
+    },
+    {
+      "name": "Jobs Runner",
+      "command": "php jobs_runner.php"
+    }
+  ]
+}

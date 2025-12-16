@@ -1,0 +1,11 @@
+Changelog V100:
+- Padronização do endpoint /api/apply_env.php usando ApiResponse e códigos HTTP consistentes (405/401/403/500/202).
+- ApiResponse::jsonSuccess agora aceita httpCode opcional para respostas 2xx configuráveis.
+- ZIP renomeado para SEVADARKNESS_REDE_ALABAMA_V100 preservando toda a estrutura anterior.
+
+Changelog V46 Optimized Supreme:
+- Limpeza de arquivos temporários, cache, .DS_Store
+- Estrutura padronizada e compressão máxima
+- Inclusão de README expandido
+- Permissões ajustadas em scripts essenciais
+- Pronto para deploy seguro e escalável

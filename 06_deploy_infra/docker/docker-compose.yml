@@ -1,0 +1,89 @@
+version: "3.8"
+
+services:
+  app:
+    build:
+      # Contexto é a raiz do projeto (RedeAlabama_Platform0)
+      context: ../..
+      dockerfile: 06_deploy_infra/docker/Dockerfile
+    container_name: redealabama_app
+    ports:
+      - "8000:80"
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+    volumes:
+      # A aplicação espera o .env dentro do backend
+      - .env:/var/www/html/01_backend_painel_php/.env
+      # Uploads persistentes (ajuste conforme seu deploy)
+      - ../../01_backend_painel_php/uploads:/var/www/html/01_backend_painel_php/uploads
+
+  db:
+    image: mariadb:10.11
+    container_name: redealabama_db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${DB_DATABASE:-redealabama}
+      MYSQL_USER: ${DB_USERNAME:-redealabama}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-redealabama123}
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      - "3307:3306"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${DB_ROOT_PASSWORD:-root}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7
+    container_name: redealabama_redis
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: redealabama_prometheus
+    volumes:
+      - ../observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: redealabama_grafana
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../observability/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ../observability/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: redealabama_otel
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ../observability/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4318:4318"   # OTLP HTTP
+      - "9464:9464"   # Prometheus exporter
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
