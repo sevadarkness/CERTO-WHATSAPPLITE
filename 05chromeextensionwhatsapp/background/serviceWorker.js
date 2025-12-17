@@ -9,16 +9,16 @@
 // NOTE: This service worker is intentionally small and defensive.
 
 const DEFAULTS = {
-  // Conexão - PRÉ-CONFIGURADO (não aparece no popup)
+  // Conexão - Usuário deve configurar via popup
   provider: "openai",
-  openaiApiKey: "sk-proj-XXXXXXXXXXXXXXXXXXXXXXXX", // Chave fixa
+  openaiApiKey: "", // Usuário deve inserir sua própria chave
   openaiModel: "gpt-4o-mini",
 
   // Backend - PRÉ-CONFIGURADO (não aparece no popup)
   backendUrl: "https://adm.redealabama.com",
   backendAiPath: "/ai/chat.php",
   backendCampaignPath: "/api/campaigns.php",
-  backendSecret: "alabama-secret-key-2024",
+  backendSecret: "", // Removido por segurança - configurar via popup se necessário
 
   // Generation
   temperature: 0.7,
@@ -62,12 +62,19 @@ async function getSettings() {
 }
 
 function ok(sendResponse, payload) {
-  try { sendResponse({ ok: true, ...payload }); } catch (_) {}
+  try { 
+    sendResponse({ ok: true, ...payload }); 
+  } catch (e) {
+    console.error('[WhatsHybrid Lite] Failed to send response:', e);
+  }
 }
 
 function fail(sendResponse, error, extra = {}) {
   const msg = (error && error.message) ? error.message : String(error || "Erro desconhecido");
-  try { sendResponse({ ok: false, error: msg, ...extra }); } catch (_) {}
+  console.error('[WhatsHybrid Lite] Error:', msg, error);
+  try { sendResponse({ ok: false, error: msg, ...extra }); } catch (e) {
+    console.error('[WhatsHybrid Lite] Failed to send error response:', e);
+  }
 }
 
 function clampNumber(v, min, max, fallback) {
@@ -282,10 +289,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
               }
             });
             // also attempt to flush any queued events
-            await flushMemoryQueue(settings).catch(() => {});
+            await flushMemoryQueue(settings).catch((flushErr) => {
+              console.warn('[WhatsHybrid Lite] Failed to flush memory queue:', flushErr);
+            });
           }
         } catch (e) {
           // best-effort, don't block save
+          console.warn('[WhatsHybrid Lite] Failed to sync memory context:', e);
         }
 
         return ok(sendResponse, { saved: true });

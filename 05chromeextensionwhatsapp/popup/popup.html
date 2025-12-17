@@ -28,6 +28,34 @@
     <!-- Tab: Configuração -->
     <div class="popup-tab-content active" id="tab-config">
       
+      <!-- Card API Key (NOVO - CRÍTICO) -->
+      <div class="card">
+        <div class="cardTitle">🔑 Configuração da API OpenAI</div>
+        
+        <div class="api-key-section">
+          <div class="row">
+            <label>Chave API OpenAI</label>
+            <div class="api-key-input-wrapper">
+              <input type="password" id="openaiApiKey" placeholder="sk-proj-..." />
+              <button id="toggleApiKeyVisibility" class="btn-icon" title="Mostrar/Ocultar">👁️</button>
+            </div>
+          </div>
+          
+          <div class="api-status-container">
+            <div id="apiStatus" class="api-status">
+              <span class="status-indicator" id="apiStatusIndicator">⚪</span>
+              <span id="apiStatusText">Chave não configurada</span>
+            </div>
+            <button id="testApiKey" class="btn-test">Testar Conexão</button>
+          </div>
+        </div>
+        
+        <p class="hint">
+          🔒 Sua chave API é armazenada localmente e nunca é compartilhada.<br>
+          Obtenha sua chave em <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a>
+        </p>
+      </div>
+      
       <!-- Card Chatbot (MANTIDO) -->
       <div class="card">
         <div class="cardTitle">🤖 Chatbot</div>

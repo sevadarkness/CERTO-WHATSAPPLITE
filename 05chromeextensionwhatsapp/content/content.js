@@ -24,8 +24,8 @@
   // Utils & Debug
   // -------------------------
   // DEBUG_MODE: Set to true for troubleshooting DOM automation issues
-  // NOTE: In production, consider setting to false to reduce console noise
-  const DEBUG_MODE = true;
+  // NOTE: Set to false in production to reduce console noise
+  const DEBUG_MODE = false;
   
   const log = (...args) => console.log('[WhatsHybrid Lite]', ...args);
   const warn = (...args) => console.warn('[WhatsHybrid Lite]', ...args);
