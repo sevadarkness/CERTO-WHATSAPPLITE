@@ -6484,7 +6484,56 @@ wa.smartbot.salvar()
       notify: (channel, notification) => system.notifications.send(channel, notification)
     };
 
-    console.log('[CampaignSystem] 🎉 API disponível em window.wa.campaigns');
+    console.log(`
+╔═══════════════════════════════════════════════════════════╗
+║      CAMPAIGN SYSTEM - SISTEMA AVANÇADO DE CAMPANHAS     ║
+╚═══════════════════════════════════════════════════════════╝
+
+🎮 COMANDOS PRINCIPAIS:
+
+📋 EXECUTAR CAMPANHA:
+await wa.campaigns.execute({
+  contacts: [{ name: 'João', number: '+5511999999999' }],
+  message: 'Olá {{nome}}! 🎉',
+  delay: 5000
+})
+
+📅 AGENDAR CAMPANHA:
+wa.campaigns.schedule(config, '2025-12-18T10:00:00')
+wa.campaigns.list()     // Listar agendadas
+wa.campaigns.cancel(id) // Cancelar
+
+📊 RELATÓRIOS:
+wa.campaigns.report('campaign_id')
+wa.campaigns.export('campaign_id', 'csv')  // json, csv, html
+
+📝 TEMPLATES:
+wa.campaigns.template.register('nome', 'Olá {{nome}}! {{#if vip}}VIP{{/if}}')
+wa.campaigns.template.process('nome', { nome: 'João', vip: true })
+wa.campaigns.template.validate('{{nome}}')
+
+🚨 ALERTAS:
+wa.campaigns.alerts.add('rule_id', {
+  metric: 'failureRate',
+  condition: 'gt',
+  threshold: 20,
+  severity: 'critical'
+})
+wa.campaigns.alerts.active()
+wa.campaigns.alerts.acknowledge(id)
+
+🔔 NOTIFICAÇÕES:
+await wa.campaigns.notify('chrome', {
+  title: 'Teste',
+  message: 'Notificação de teste'
+})
+
+✨ Templates padrão: welcome, followup, promo
+📡 Canais: console, chrome, event, webhook
+💾 Persistência automática em chrome.storage
+
+🚀 Sistema pronto para uso!
+`);
     return system;
   };
 
