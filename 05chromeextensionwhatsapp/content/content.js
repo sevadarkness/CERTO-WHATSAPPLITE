@@ -316,6 +316,10 @@
       '#main footer [contenteditable="true"]'
     ],
     sendButton: [
+      // NOVOS seletores 2024/2025 - PRIMEIRO!
+      'span[data-icon="wds-ic-send-filled"]',
+      'div[role="button"][aria-label*="Enviar"]',
+      // Seletores antigos como fallback
       '[data-testid="compose-btn-send"]',
       'footer button span[data-icon="send"]',
       'footer button span[data-icon="send-light"]',
@@ -366,6 +370,12 @@
       '[data-testid="chat-list"] [role="listitem"]'
     ],
     dialogRoot: [
+      // Novos seletores 2024/2025
+      '[data-testid="media-viewer-modal"]',
+      '[data-animate-modal-popup="true"]',
+      '.media-canvas-renderer',
+      '._2Ts6i._2xAQV',
+      // Seletores antigos como fallback
       'div[role="dialog"]',
       '[data-testid="media-viewer"]',
       '[data-testid="popup"]'
@@ -651,11 +661,17 @@
   }
 
   function findSendButton() {
-    // Try new findElement helper first (with visibility check)
-    const el = findElement('sendButton');
-    if (el) return el;
+    // Tentar novo seletor primeiro
+    const newSendIcon = document.querySelector('span[data-icon="wds-ic-send-filled"]');
+    if (newSendIcon) {
+      const btn = newSendIcon.closest('div[role="button"]') || newSendIcon.closest('button');
+      if (btn && btn.offsetWidth > 0) return btn;
+    }
     
-    // Fallback to original implementation
+    // Fallback para seletores antigos
+    const el = findElement('sendButton');
+    if (el) return el.closest('button') || el.closest('div[role="button"]') || el;
+    
     return querySelector(WA_SELECTORS.sendButton);
   }
 
@@ -766,18 +782,49 @@
   }
 
   function findMediaSendButton() {
-    const dlg = findDialogRoot();
-    if (!dlg) return null;
+    // Novos seletores para dialog de mídia 2024/2025
+    const mediaDialogSelectors = [
+      '[data-testid="media-viewer-modal"]',
+      '[data-animate-modal-popup="true"]',
+      '.media-canvas-renderer',
+      '._2Ts6i._2xAQV',
+      'div[role="dialog"]'  // fallback
+    ];
+    
+    let dlg = null;
+    for (const sel of mediaDialogSelectors) {
+      dlg = document.querySelector(sel);
+      if (dlg) break;
+    }
+    
+    if (!dlg) {
+      // Se não encontrar dialog, buscar botão de enviar diretamente
+      const sendIcon = document.querySelector('span[data-icon="wds-ic-send-filled"]');
+      if (sendIcon) {
+        const btn = sendIcon.closest('div[role="button"]') || sendIcon.closest('button');
+        if (btn && btn.offsetWidth > 0) return btn;
+      }
+      return null;
+    }
 
-    const btn =
-      dlg.querySelector('button[aria-label*="Enviar"]') ||
-      dlg.querySelector('button[aria-label*="Send"]') ||
-      dlg.querySelector('button span[data-icon="send"]')?.closest('button') ||
-      dlg.querySelector('button span[data-icon="send-light"]')?.closest('button') ||
-      null;
+    // Buscar botão de enviar dentro do dialog
+    const sendSelectors = [
+      'span[data-icon="wds-ic-send-filled"]',
+      'button[aria-label*="Enviar"]',
+      'div[role="button"][aria-label*="Enviar"]',
+      'button span[data-icon="send"]',
+      '[data-testid="send"]'
+    ];
+    
+    for (const sel of sendSelectors) {
+      const btn = dlg.querySelector(sel);
+      if (btn) {
+        const clickable = btn.closest('div[role="button"]') || btn.closest('button') || btn;
+        if (clickable && clickable.offsetWidth > 0) return clickable;
+      }
+    }
 
-    if (btn && btn.closest('footer')) return null;
-    return btn;
+    return null;
   }
 
   // FIX 5: Envio de Imagem (DOM) - Melhorias
@@ -860,32 +907,29 @@
     
     debugLog('Arquivo anexado, aguardando preview...');
 
-    // 4. Aguardar preview com timeout maior
+    // 4. Aguardar preview com seletores atualizados
     let sendBtn = null;
     const maxAttempts = 60; // 18 segundos
     
     for (let i = 0; i < maxAttempts; i++) {
       await sleep(300);
       
-      // Múltiplos seletores para botão de envio na dialog
-      const sendSelectors = [
-        '[data-testid="send"]',
-        'span[data-icon="send"]',
-        'button[aria-label*="Enviar"]',
-        'div[role="button"][aria-label*="Enviar"]'
-      ];
-      
-      for (const sel of sendSelectors) {
-        const btn = document.querySelector(`div[role="dialog"] ${sel}, [data-testid="media-viewer"] ${sel}`);
-        if (btn) {
-          sendBtn = btn.closest('button') || btn.closest('div[role="button"]') || btn;
-          break;
-        }
-      }
+      // Usar função atualizada
+      sendBtn = findMediaSendButton();
       
       if (sendBtn) {
         debugLog('Botão de envio encontrado após', i * 300, 'ms');
         break;
+      }
+      
+      // Fallback: buscar diretamente pelo novo ícone
+      const sendIcon = document.querySelector('span[data-icon="wds-ic-send-filled"]');
+      if (sendIcon) {
+        sendBtn = sendIcon.closest('div[role="button"]') || sendIcon.closest('button');
+        if (sendBtn && sendBtn.offsetWidth > 0) {
+          debugLog('Botão encontrado via ícone wds-ic-send-filled');
+          break;
+        }
       }
     }
     
@@ -1143,7 +1187,45 @@
     }
     
     debugLog('❌ Chat não abriu ou não corresponde ao número correto');
-    throw new Error('Chat não abriu (composer não encontrado ou chat incorreto).');
+    
+    // FALLBACK: Se busca não encontrar, usar URL direta
+    debugLog('Busca falhou, tentando URL direta...');
+    try {
+      return await openChatByUrl(query);
+    } catch (urlError) {
+      debugLog('URL direta também falhou:', urlError);
+      throw new Error('Chat não abriu (busca e URL direta falharam).');
+    }
+  }
+
+  // NOVA FUNÇÃO: Abrir chat via URL direta (funciona mesmo com contatos salvos)
+  async function openChatByUrl(phoneNumber) {
+    const digits = phoneNumber.replace(/\D/g, '');
+    
+    if (!digits || digits.length < 10) {
+      throw new Error('Número inválido para URL direta');
+    }
+    
+    debugLog('Abrindo chat via URL direta:', digits);
+    
+    // Navegar para URL do WhatsApp
+    const url = `https://web.whatsapp.com/send?phone=${digits}`;
+    window.location.href = url;
+    
+    // Aguardar página carregar
+    await sleep(3000);
+    
+    // Verificar se chat abriu (composer disponível)
+    for (let i = 0; i < 20; i++) {
+      await sleep(500);
+      const composer = findComposer();
+      if (composer) {
+        debugLog('✅ Chat aberto via URL direta');
+        return true;
+      }
+    }
+    
+    throw new Error('Chat não abriu após navegação via URL');
   }
 
   // -------------------------
