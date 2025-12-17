@@ -4028,6 +4028,8 @@ ${transcript || '(não consegui ler mensagens)'}
     if (box) box.style.display = 'none';
   }
 
+  let quickRepliesDebounceTimer = null; // Declare debounce timer
+
   async function initQuickRepliesListener() {
     // Prevent multiple listeners
     if (quickRepliesListener) return;
@@ -4071,10 +4073,9 @@ ${transcript || '(não consegui ler mensagens)'}
     };
 
     // Add input listener with debouncing
-    let debounceTimer;
     quickRepliesListener = () => {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(inputListener, 100);
+      clearTimeout(quickRepliesDebounceTimer);
+      quickRepliesDebounceTimer = setTimeout(inputListener, 100);
     };
 
     // Listen on document for input events (bubbles up from composer)

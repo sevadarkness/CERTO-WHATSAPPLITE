@@ -1,5 +1,8 @@
 const el = (id) => document.getElementById(id);
 
+// Constants
+const TEAM_SEND_TIMEOUT_MS = 60000; // 60 seconds timeout for team messaging
+
 // Global state
 let quickReplies = [];
 let teamMembers = [];
@@ -497,8 +500,8 @@ async function sendToTeam() {
     // FIX 2: Usar Promise wrapper para garantir resposta
     const response = await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
-        reject(new Error('Timeout: WhatsApp Web não respondeu em 60s'));
-      }, 60000);
+        reject(new Error(`Timeout: WhatsApp Web não respondeu em ${TEAM_SEND_TIMEOUT_MS/1000}s`));
+      }, TEAM_SEND_TIMEOUT_MS);
       
       chrome.runtime.sendMessage({
         type: "SEND_TO_TEAM",
