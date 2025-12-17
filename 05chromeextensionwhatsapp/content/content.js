@@ -4130,4 +4130,954 @@ ${transcript || '(não consegui ler mensagens)'}
   } else {
     boot();
   }
+
+  // ============================================================
+  // WHATSAPP AUTOMATION HELPER 2024/2025
+  // ============================================================
+
+  /**
+   * WhatsApp Web Automation Helper - Versão 2024/2025
+   * Implementa todas as correções necessárias para compatibilidade atual
+   */
+
+  class WhatsAppAutomation {
+    constructor() {
+      // Seletores atualizados para 2024/2025
+      this.selectors = {
+        // Dialog de mídia - múltiplas opções para compatibilidade
+        mediaDialog: [
+          '[data-testid="media-viewer-modal"]',
+          '[data-animate-modal-popup="true"]',
+          '.media-canvas-renderer',
+          '._2Ts6i._2xAQV',
+          '[data-animate-media-viewer="true"]'
+        ],
+        
+        // Botão enviar - versões atualizadas
+        sendButton: [
+          'span[data-icon="wds-ic-send-filled"]',  // NOVO - 2024/2025
+          'span[data-icon="send"]',                // Fallback
+          'button[aria-label*="Enviar"]',
+          'button[data-testid="compose-btn-send"]',
+          '[data-icon="send-light"]'
+        ],
+        
+        // Botão enviar no dialog de mídia
+        mediaSendButton: [
+          'span[data-icon="wds-ic-send-filled"]',  // NOVO
+          '[data-testid="media-send-button"]',
+          'div[role="button"][aria-label*="Enviar"]',
+          'button._1E0Oz',
+          'span[data-icon="send"]'
+        ],
+        
+        // Área de input de mensagem
+        messageInput: [
+          'div[contenteditable="true"][data-tab="10"]',
+          '[data-testid="conversation-compose-box-input"]',
+          'div[role="textbox"]',
+          'div._3Uu1_'
+        ],
+        
+        // Caption da mídia (legenda)
+        mediaCaption: [
+          '[data-testid="media-caption-input"]',
+          'div[contenteditable="true"][data-tab="10"]',
+          '.media-caption-input'
+        ],
+        
+        // Busca de contatos
+        searchBox: [
+          '[data-testid="chat-list-search"]',
+          'div[contenteditable="true"][data-tab="3"]',
+          'div[role="textbox"][title*="Pesquisar"]'
+        ],
+        
+        // Resultados da busca
+        searchResults: [
+          '[data-testid="search-result-chat"]',
+          'div[role="listitem"]',
+          '._3m_Xw'
+        ]
+      };
+    }
+
+    /**
+     * Abre chat usando URL direta (funciona mesmo com contatos salvos)
+     */
+    async openChatByUrl(phoneNumber) {
+      try {
+        const digits = phoneNumber.replace(/\D/g, '');
+        
+        if (digits.length < 10) {
+          throw new Error('Número de telefone inválido');
+        }
+        
+        const url = `https://web.whatsapp.com/send?phone=${digits}`;
+        window.location.href = url;
+        
+        console.log(`[WhatsApp] Abrindo chat via URL: ${url}`);
+        
+        await this.waitForChatLoad(10000);
+        
+        return true;
+      } catch (error) {
+        console.error('[WhatsApp] Erro ao abrir chat por URL:', error);
+        return false;
+      }
+    }
+
+    /**
+     * Abre chat usando busca (Fallback)
+     */
+    async openChatBySearch(contactName) {
+      try {
+        console.log(`[WhatsApp] Buscando contato: ${contactName}`);
+        
+        const searchBox = this.findElement(this.selectors.searchBox);
+        if (!searchBox) {
+          throw new Error('Caixa de busca não encontrada');
+        }
+        
+        searchBox.focus();
+        searchBox.textContent = '';
+        
+        await this.typeText(searchBox, contactName);
+        await this.sleep(1500);
+        
+        const results = document.querySelectorAll(this.selectors.searchResults.join(','));
+        
+        if (results.length === 0) {
+          throw new Error('Nenhum resultado encontrado');
+        }
+        
+        results[0].click();
+        
+        console.log('[WhatsApp] Contato selecionado');
+        
+        await this.waitForChatLoad(5000);
+        
+        return true;
+      } catch (error) {
+        console.error('[WhatsApp] Erro ao buscar contato:', error);
+        return false;
+      }
+    }
+
+    /**
+     * Fallback inteligente: URL primeiro, busca depois
+     */
+    async openChat(identifier) {
+      const isPhoneNumber = /^\+?\d{10,}$/.test(identifier.replace(/\D/g, ''));
+      
+      if (isPhoneNumber) {
+        console.log('[WhatsApp] Detectado número - usando URL direta');
+        const success = await this.openChatByUrl(identifier);
+        
+        if (success) return true;
+        
+        console.log('[WhatsApp] URL falhou, tentando busca como fallback');
+      }
+      
+      return await this.openChatBySearch(identifier);
+    }
+
+    /**
+     * Encontra botão enviar atualizado
+     */
+    findSendButton() {
+      if (this.isMediaDialogOpen()) {
+        return this.findMediaSendButton();
+      }
+      
+      const button = this.findElement(this.selectors.sendButton);
+      
+      if (button) {
+        console.log('[WhatsApp] Botão enviar encontrado:', button);
+        return button;
+      }
+      
+      console.warn('[WhatsApp] Botão enviar não encontrado');
+      return null;
+    }
+
+    /**
+     * Encontra botão enviar no dialog de mídia
+     */
+    findMediaSendButton() {
+      const dialog = this.getMediaDialog();
+      if (!dialog) {
+        console.warn('[WhatsApp] Dialog de mídia não está aberto');
+        return null;
+      }
+      
+      for (const selector of this.selectors.mediaSendButton) {
+        const button = dialog.querySelector(selector);
+        if (button) {
+          console.log('[WhatsApp] Botão enviar mídia encontrado:', selector);
+          return button;
+        }
+      }
+      
+      console.warn('[WhatsApp] Botão enviar mídia não encontrado');
+      return null;
+    }
+
+    /**
+     * Verifica se dialog de mídia está aberto
+     */
+    isMediaDialogOpen() {
+      return this.selectors.mediaDialog.some(selector => 
+        document.querySelector(selector) !== null
+      );
+    }
+
+    /**
+     * Obtém elemento do dialog de mídia
+     */
+    getMediaDialog() {
+      for (const selector of this.selectors.mediaDialog) {
+        const dialog = document.querySelector(selector);
+        if (dialog) {
+          console.log('[WhatsApp] Dialog encontrado:', selector);
+          return dialog;
+        }
+      }
+      return null;
+    }
+
+    /**
+     * Aguarda dialog de mídia abrir
+     */
+    async waitForMediaDialog(timeout = 5000) {
+      const startTime = Date.now();
+      
+      return new Promise((resolve, reject) => {
+        const interval = setInterval(() => {
+          const dialog = this.getMediaDialog();
+          
+          if (dialog) {
+            clearInterval(interval);
+            resolve(dialog);
+            return;
+          }
+          
+          if (Date.now() - startTime > timeout) {
+            clearInterval(interval);
+            reject(new Error('Timeout aguardando dialog de mídia'));
+          }
+        }, 100);
+      });
+    }
+
+    /**
+     * Aguarda chat carregar
+     */
+    async waitForChatLoad(timeout = 10000) {
+      const startTime = Date.now();
+      
+      return new Promise((resolve, reject) => {
+        const interval = setInterval(() => {
+          const input = this.findElement(this.selectors.messageInput);
+          
+          if (input) {
+            clearInterval(interval);
+            resolve(true);
+            return;
+          }
+          
+          if (Date.now() - startTime > timeout) {
+            clearInterval(interval);
+            reject(new Error('Timeout aguardando chat carregar'));
+          }
+        }, 200);
+      });
+    }
+
+    /**
+     * Envia mensagem de texto
+     */
+    async sendTextMessage(message) {
+      try {
+        const input = this.findElement(this.selectors.messageInput);
+        if (!input) {
+          throw new Error('Input de mensagem não encontrado');
+        }
+        
+        await this.typeText(input, message);
+        await this.sleep(500);
+        
+        const sendBtn = this.findSendButton();
+        if (!sendBtn) {
+          throw new Error('Botão enviar não encontrado');
+        }
+        
+        sendBtn.click();
+        console.log('[WhatsApp] Mensagem enviada:', message);
+        
+        return true;
+      } catch (error) {
+        console.error('[WhatsApp] Erro ao enviar mensagem:', error);
+        return false;
+      }
+    }
+
+    /**
+     * Envia mídia com legenda
+     */
+    async sendMediaWithCaption(caption = '') {
+      try {
+        await this.waitForMediaDialog(5000);
+        
+        if (caption) {
+          const captionInput = this.findElement(this.selectors.mediaCaption);
+          if (captionInput) {
+            await this.typeText(captionInput, caption);
+            await this.sleep(300);
+          }
+        }
+        
+        const sendBtn = this.findMediaSendButton();
+        if (!sendBtn) {
+          throw new Error('Botão enviar mídia não encontrado');
+        }
+        
+        sendBtn.click();
+        console.log('[WhatsApp] Mídia enviada com legenda:', caption);
+        
+        return true;
+      } catch (error) {
+        console.error('[WhatsApp] Erro ao enviar mídia:', error);
+        return false;
+      }
+    }
+
+    findElement(selectors) {
+      if (!Array.isArray(selectors)) selectors = [selectors];
+      
+      for (const selector of selectors) {
+        const element = document.querySelector(selector);
+        if (element) return element;
+      }
+      
+      return null;
+    }
+
+    async typeText(element, text) {
+      element.focus();
+      
+      for (const char of text) {
+        element.textContent += char;
+        element.dispatchEvent(new InputEvent('input', { bubbles: true, data: char }));
+        element.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: char }));
+        element.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: char }));
+        await this.sleep(50 + Math.random() * 100);
+      }
+    }
+
+    sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    debugButtons() {
+      console.log('=== DEBUG: Botões Encontrados ===');
+      
+      const allButtons = document.querySelectorAll('button, span[data-icon], div[role="button"]');
+      console.log(`Total de botões no DOM: ${allButtons.length}`);
+      
+      allButtons.forEach((btn, i) => {
+        const icon = btn.getAttribute('data-icon');
+        const ariaLabel = btn.getAttribute('aria-label');
+        const testId = btn.getAttribute('data-testid');
+        
+        if (icon || (ariaLabel && ariaLabel.includes('nviar'))) {
+          console.log(`[${i}]`, { icon, ariaLabel, testId, element: btn });
+        }
+      });
+      
+      console.log('=== Fim Debug ===');
+    }
+  }
+
+  class WhatsAppMonitor {
+    constructor(automation) {
+      this.wa = automation;
+      this.isMonitoring = false;
+      this.lastDialogState = false;
+    }
+    
+    start() {
+      if (this.isMonitoring) {
+        console.log('[Monitor] Já está rodando');
+        return;
+      }
+      
+      this.isMonitoring = true;
+      console.log('[Monitor] 🟢 Monitoramento iniciado');
+      
+      this.intervalId = setInterval(() => {
+        const isOpen = this.wa.isMediaDialogOpen();
+        
+        if (isOpen !== this.lastDialogState) {
+          if (isOpen) {
+            console.log('[Monitor] 📸 Dialog de mídia aberto!');
+            const dialog = this.wa.getMediaDialog();
+            const sendBtn = this.wa.findMediaSendButton();
+            
+            console.log('[Monitor] Dialog:', dialog ? '✓' : '✗');
+            console.log('[Monitor] Botão Enviar:', sendBtn ? '✓' : '✗');
+            
+            if (sendBtn) {
+              console.log('[Monitor] 🎯 Tudo pronto para enviar!');
+            }
+          } else {
+            console.log('[Monitor] Dialog de mídia fechado');
+          }
+          
+          this.lastDialogState = isOpen;
+        }
+      }, 500);
+    }
+    
+    stop() {
+      if (!this.isMonitoring) {
+        console.log('[Monitor] Não está rodando');
+        return;
+      }
+      
+      clearInterval(this.intervalId);
+      this.isMonitoring = false;
+      console.log('[Monitor] 🔴 Monitoramento parado');
+    }
+  }
+
+  class WhatsAppTextMonitor {
+    constructor(automation) {
+      this.wa = automation;
+      this.isMonitoring = false;
+      this.lastMessages = [];
+      this.callbacks = {
+        onNewMessage: [],
+        onNewChat: [],
+        onTyping: []
+      };
+      this.currentChatId = null;
+      this.intervalId = null;
+      
+      this.selectors = {
+        messageContainer: [
+          '[data-testid="conversation-panel-messages"]',
+          '.message-list',
+          '._33LGR',
+          '[data-testid="msg-container"]'
+        ],
+        messages: [
+          '[data-testid="msg-container"]',
+          '.message-in, .message-out',
+          '._22Msk',
+          '.focusable-list-item'
+        ],
+        typingIndicator: [
+          '[data-testid="typing"]',
+          '._2QZ0V',
+          '.typing-indicator'
+        ],
+        currentChat: [
+          '[data-testid="conversation-header"]',
+          '.chat-active',
+          '._2gzeB'
+        ],
+        messageText: [
+          '[data-testid="msg-text"]',
+          '.selectable-text',
+          '._11JPr'
+        ],
+        messageInfo: [
+          '[data-testid="msg-meta"]',
+          '.message-datetime',
+          '._1beEj'
+        ],
+        messageAuthor: [
+          '[data-testid="msg-name"]',
+          '.message-author',
+          '._3FuDI'
+        ]
+      };
+    }
+    
+    start(options = {}) {
+      const defaultOptions = {
+        interval: 1000,
+        detectTyping: true,
+        trackMessageStatus: true,
+        storeHistory: true,
+        maxHistoryLength: 50,
+        debug: false
+      };
+      
+      this.config = {...defaultOptions, ...options};
+      
+      if (this.isMonitoring) {
+        console.log('[TextMonitor] 🟡 Monitor já está ativo');
+        return;
+      }
+      
+      this.isMonitoring = true;
+      console.log('[TextMonitor] 🟢 Monitoramento de texto iniciado');
+      this.lastCheck = Date.now();
+      
+      this.captureCurrentMessages();
+      this.intervalId = setInterval(() => this.check(), this.config.interval);
+    }
+    
+    stop() {
+      if (!this.isMonitoring) {
+        console.log('[TextMonitor] Não está ativo');
+        return;
+      }
+      
+      clearInterval(this.intervalId);
+      this.isMonitoring = false;
+      console.log('[TextMonitor] 🔴 Monitoramento de texto parado');
+    }
+    
+    on(event, callback) {
+      if (!this.callbacks[event]) {
+        console.error(`[TextMonitor] Evento desconhecido: ${event}`);
+        return;
+      }
+      
+      this.callbacks[event].push(callback);
+      console.log(`[TextMonitor] Callback registrado para ${event}`);
+      
+      return () => this.off(event, callback);
+    }
+    
+    off(event, callback) {
+      if (!this.callbacks[event]) return false;
+      
+      const index = this.callbacks[event].indexOf(callback);
+      if (index !== -1) {
+        this.callbacks[event].splice(index, 1);
+        return true;
+      }
+      
+      return false;
+    }
+    
+    check() {
+      this.checkCurrentChat();
+      this.checkNewMessages();
+      if (this.config.detectTyping) {
+        this.checkTypingStatus();
+      }
+    }
+    
+    checkCurrentChat() {
+      const header = this.findElement(this.selectors.currentChat);
+      if (!header) return;
+      
+      const chatTitle = header.textContent.trim();
+      const chatId = header.getAttribute('data-id') || chatTitle;
+      
+      if (chatId && chatId !== this.currentChatId) {
+        const oldChatId = this.currentChatId;
+        this.currentChatId = chatId;
+        
+        console.log(`[TextMonitor] 📱 Chat mudou: "${chatTitle}"`);
+        this.captureCurrentMessages();
+        
+        this.triggerCallbacks('onNewChat', {
+          chatId,
+          chatTitle,
+          previousChat: oldChatId,
+          timestamp: Date.now()
+        });
+      }
+    }
+    
+    checkNewMessages() {
+      const container = this.findElement(this.selectors.messageContainer);
+      if (!container) return;
+      
+      const messageElements = container.querySelectorAll(this.selectors.messages.join(','));
+      if (!messageElements.length) return;
+      
+      const currentMessages = Array.from(messageElements).map(el => {
+        const id = el.getAttribute('data-id') || 
+                  el.getAttribute('data-testid') || 
+                  this.getMessageHash(el);
+                  
+        const isOutgoing = el.classList.contains('message-out') || 
+                          el.hasAttribute('data-outgoing') ||
+                          !!el.querySelector('[data-outgoing="true"]');
+        
+        let textElement = null;
+        for (const selector of this.selectors.messageText) {
+          textElement = el.querySelector(selector);
+          if (textElement) break;
+        }
+        
+        let infoElement = null;
+        for (const selector of this.selectors.messageInfo) {
+          infoElement = el.querySelector(selector);
+          if (infoElement) break;
+        }
+        
+        let authorElement = null;
+        for (const selector of this.selectors.messageAuthor) {
+          authorElement = el.querySelector(selector);
+          if (authorElement) break;
+        }
+        
+        return {
+          id,
+          element: el,
+          text: textElement ? textElement.textContent.trim() : '',
+          info: infoElement ? infoElement.textContent.trim() : '',
+          author: authorElement ? authorElement.textContent.trim() : '',
+          isOutgoing,
+          timestamp: Date.now(),
+          processed: this.isMessageProcessed(id)
+        };
+      });
+      
+      const newMessages = currentMessages.filter(msg => !msg.processed);
+      
+      currentMessages.forEach(msg => {
+        if (!msg.processed) {
+          this.lastMessages.push(msg.id);
+          if (this.lastMessages.length > this.config.maxHistoryLength) {
+            this.lastMessages.shift();
+          }
+        }
+      });
+      
+      if (newMessages.length > 0) {
+        console.log(`[TextMonitor] 📨 ${newMessages.length} nova(s) mensagem(ns)`);
+        
+        newMessages.forEach(msg => {
+          this.triggerCallbacks('onNewMessage', {
+            id: msg.id,
+            text: msg.text,
+            isOutgoing: msg.isOutgoing,
+            author: msg.author,
+            info: msg.info,
+            element: msg.element,
+            chatId: this.currentChatId,
+            timestamp: Date.now()
+          });
+        });
+      }
+    }
+    
+    checkTypingStatus() {
+      const typingIndicator = this.findElement(this.selectors.typingIndicator);
+      const isTyping = !!typingIndicator;
+      
+      if (isTyping !== this.lastTypingStatus) {
+        this.lastTypingStatus = isTyping;
+        
+        if (isTyping) {
+          console.log('[TextMonitor] ⌨️ Alguém está digitando...');
+          let typerName = '';
+          if (typingIndicator) {
+            typerName = typingIndicator.textContent.replace('digitando...', '').trim();
+          }
+          
+          this.triggerCallbacks('onTyping', {
+            isTyping: true,
+            name: typerName,
+            chatId: this.currentChatId,
+            timestamp: Date.now()
+          });
+        } else {
+          console.log('[TextMonitor] Digitação parou');
+          this.triggerCallbacks('onTyping', {
+            isTyping: false,
+            chatId: this.currentChatId,
+            timestamp: Date.now()
+          });
+        }
+      }
+    }
+    
+    captureCurrentMessages() {
+      const container = this.findElement(this.selectors.messageContainer);
+      if (!container) {
+        this.lastMessages = [];
+        return;
+      }
+      
+      const messageElements = container.querySelectorAll(this.selectors.messages.join(','));
+      this.lastMessages = Array.from(messageElements).map(el => {
+        return el.getAttribute('data-id') || 
+               el.getAttribute('data-testid') || 
+               this.getMessageHash(el);
+      });
+      
+      console.log(`[TextMonitor] Base inicial: ${this.lastMessages.length} mensagens`);
+    }
+    
+    isMessageProcessed(id) {
+      return this.lastMessages.includes(id);
+    }
+    
+    getMessageHash(el) {
+      const text = el.textContent.trim();
+      const classes = Array.from(el.classList).join('');
+      return `msg_${text.length}_${classes.length}_${Date.now()}`;
+    }
+    
+    triggerCallbacks(event, data) {
+      if (!this.callbacks[event] || !this.callbacks[event].length) return;
+      
+      this.callbacks[event].forEach(callback => {
+        try {
+          callback(data);
+        } catch (error) {
+          console.error(`[TextMonitor] Erro no callback de ${event}:`, error);
+        }
+      });
+    }
+    
+    findElement(selectors) {
+      if (!Array.isArray(selectors)) selectors = [selectors];
+      for (const selector of selectors) {
+        const element = document.querySelector(selector);
+        if (element) return element;
+      }
+      return null;
+    }
+    
+    async reply(text) {
+      if (!this.currentChatId) {
+        console.error('[TextMonitor] Nenhum chat ativo para responder');
+        return false;
+      }
+      return await this.wa.sendTextMessage(text);
+    }
+    
+    analyzeSentiment(text) {
+      const positiveWords = ['bom', 'bem', 'ótimo', 'excelente', 'incrível', 'maravilhoso', 'obrigado', 'grato', 'feliz', 'perfeito', 'sim', '👍', '😊', '❤️'];
+      const negativeWords = ['ruim', 'mal', 'péssimo', 'terrível', 'horrível', 'problema', 'erro', 'não', 'incorreto', 'insatisfeito', '👎', '😠'];
+      
+      const words = text.toLowerCase().split(/\s+/);
+      let positiveScore = 0;
+      let negativeScore = 0;
+      
+      words.forEach(word => {
+        if (positiveWords.some(pw => word.includes(pw))) positiveScore++;
+        if (negativeWords.some(nw => word.includes(nw))) negativeScore++;
+      });
+      
+      const totalWords = words.length;
+      const score = totalWords > 0 ? ((positiveScore - negativeScore) / totalWords) : 0;
+      
+      let sentiment = 'neutral';
+      if (score > 0.05) sentiment = 'positive';
+      if (score < -0.05) sentiment = 'negative';
+      
+      return { sentiment, score: parseFloat(score.toFixed(2)), positiveWords: positiveScore, negativeWords: negativeScore };
+    }
+    
+    detectIntent(text) {
+      const lowerText = text.toLowerCase();
+      
+      const patterns = {
+        greeting: ['olá', 'oi', 'bom dia', 'boa tarde', 'boa noite', 'hello', 'hi'],
+        farewell: ['tchau', 'adeus', 'até logo', 'até mais', 'goodbye', 'bye'],
+        thanks: ['obrigado', 'obrigada', 'valeu', 'thanks'],
+        question: ['?', 'quem', 'como', 'quando', 'onde', 'por que'],
+        request: ['pode', 'poderia', 'gostaria', 'preciso', 'quero'],
+        confirmation: ['sim', 'claro', 'ok', 'certo', 'yes', 'sure']
+      };
+      
+      const matches = {};
+      for (const [intent, keywords] of Object.entries(patterns)) {
+        matches[intent] = 0;
+        keywords.forEach(keyword => {
+          if (lowerText.includes(keyword)) matches[intent]++;
+        });
+      }
+      
+      let primaryIntent = 'other';
+      let maxScore = 0;
+      
+      for (const [intent, score] of Object.entries(matches)) {
+        if (score > maxScore) {
+          maxScore = score;
+          primaryIntent = intent;
+        }
+      }
+      
+      if (text.includes('?')) primaryIntent = 'question';
+      
+      return { primaryIntent, allIntents: matches };
+    }
+    
+    getChatStats() {
+      const container = this.findElement(this.selectors.messageContainer);
+      if (!container) return null;
+      
+      const messageElements = container.querySelectorAll(this.selectors.messages.join(','));
+      if (!messageElements.length) {
+        return { total: 0, incoming: 0, outgoing: 0, ratioInOut: 0, averageLength: 0 };
+      }
+      
+      let incoming = 0, outgoing = 0, totalLength = 0;
+      
+      Array.from(messageElements).forEach(el => {
+        const isOutgoing = el.classList.contains('message-out');
+        if (isOutgoing) outgoing++;
+        else incoming++;
+        totalLength += el.textContent.length;
+      });
+      
+      const total = incoming + outgoing;
+      
+      return {
+        total,
+        incoming,
+        outgoing,
+        ratioInOut: outgoing > 0 ? (incoming / outgoing).toFixed(2) : 'N/A',
+        averageLength: total > 0 ? Math.floor(totalLength / total) : 0
+      };
+    }
+    
+    watchForAutoResponses(patterns) {
+      if (!patterns || typeof patterns !== 'object') {
+        console.error('[TextMonitor] Padrões inválidos');
+        return null;
+      }
+      
+      const processedPatterns = Object.entries(patterns).map(([pattern, response]) => {
+        const regex = typeof pattern === 'string' ? new RegExp(pattern, 'i') : pattern;
+        return { regex, response };
+      });
+      
+      const callback = async (message) => {
+        if (message.isOutgoing) return;
+        
+        for (const { regex, response } of processedPatterns) {
+          if (regex.test(message.text)) {
+            console.log(`[TextMonitor] 🤖 Resposta automática: "${regex}"`);
+            await this.wa.sleep(1500);
+            
+            let finalResponse = response;
+            if (typeof response === 'function') {
+              finalResponse = response(message);
+            }
+            
+            await this.reply(finalResponse);
+            break;
+          }
+        }
+      };
+      
+      this.on('onNewMessage', callback);
+      return () => this.off('onNewMessage', callback);
+    }
+  }
+
+  // ============================================================
+  // INICIALIZAÇÃO DAS INSTÂNCIAS
+  // ============================================================
+
+  const waHelper = new WhatsAppAutomation();
+  const waMonitor = new WhatsAppMonitor(waHelper);
+  const waTextMonitor = new WhatsAppTextMonitor(waHelper);
+
+  // ============================================================
+  // EXPORTAÇÃO GLOBAL (window.wa)
+  // ============================================================
+
+  window.wa = {
+    // Comandos rápidos
+    enviar: (contato, mensagem) => {
+      return (async () => {
+        await waHelper.openChat(contato);
+        await waHelper.sleep(2000);
+        return await waHelper.sendTextMessage(mensagem);
+      })();
+    },
+    
+    abrir: (contato) => waHelper.openChat(contato),
+    abrirUrl: (numero) => waHelper.openChatByUrl(numero),
+    abrirBusca: (nome) => waHelper.openChatBySearch(nome),
+    
+    debug: () => waHelper.debugButtons(),
+    
+    status: () => ({
+      mediaDialogAberto: waHelper.isMediaDialogOpen(),
+      botaoEnviarEncontrado: waHelper.findSendButton() !== null,
+      inputEncontrado: waHelper.findElement(waHelper.selectors.messageInput) !== null
+    }),
+    
+    // Monitor de mídia
+    monitor: {
+      iniciar: () => waMonitor.start(),
+      parar: () => waMonitor.stop(),
+      status: () => waMonitor.isMonitoring ? '🟢 Ativo' : '🔴 Inativo'
+    },
+    
+    // Monitor de texto
+    text: {
+      iniciar: (options) => waTextMonitor.start(options),
+      parar: () => waTextMonitor.stop(),
+      status: () => waTextMonitor.isMonitoring ? '🟢 Ativo' : '🔴 Inativo',
+      stats: () => waTextMonitor.getChatStats(),
+      analisar: (texto) => ({
+        sentimento: waTextMonitor.analyzeSentiment(texto),
+        intencao: waTextMonitor.detectIntent(texto)
+      }),
+      responderAuto: (padroes) => waTextMonitor.watchForAutoResponses(padroes),
+      escutar: (callback) => waTextMonitor.on('onNewMessage', callback)
+    },
+    
+    // Instâncias diretas
+    helper: waHelper,
+    mediaMonitor: waMonitor,
+    textMonitor: waTextMonitor
+  };
+
+  // ============================================================
+  // LOG DE INICIALIZAÇÃO
+  // ============================================================
+
+  console.log(`
+╔═══════════════════════════════════════════════════════════╗
+║   WhatsApp Web Automation Helper - v2024/2025            ║
+║   Todas as correções implementadas! ✅                    ║
+╚═══════════════════════════════════════════════════════════╝
+
+📋 STATUS DAS CORREÇÕES:
+✅ wds-ic-send-filled (novo ícone)
+✅ Dialog de mídia [data-animate-modal-popup="true"]
+✅ openChatByUrl() implementado
+✅ Fallback inteligente (URL → Busca)
+✅ findMediaSendButton() atualizado
+✅ findSendButton() com novos seletores
+✅ WhatsAppTextMonitor para mensagens
+✅ Análise de sentimento e intenção
+
+🎮 COMANDOS DISPONÍVEIS:
+
+wa.enviar('+5511999887766', 'Olá!')
+wa.abrir('João Silva')
+wa.abrirUrl('+5511999887766')
+wa.debug()
+wa.status()
+
+wa.monitor.iniciar()
+wa.monitor.parar()
+
+wa.text.iniciar()
+wa.text.stats()
+wa.text.analisar('texto aqui')
+wa.text.escutar((msg) => console.log(msg))
+
+🚀 PRONTO PARA USO!
+`);
+
 })();
