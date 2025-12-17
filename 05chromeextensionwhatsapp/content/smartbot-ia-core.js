@@ -2,7 +2,7 @@
 // SmartBot IA - Sistema Completo de Atendimento Automatizado
 // Compatível com Chrome Extensions (Manifest V3)
 // Versão: 1.0.0
-// Data: 2024/2025
+// Data: December 2024
 
 (() => {
   'use strict';
