@@ -56,35 +56,44 @@
         </p>
       </div>
       
-      <!-- Card Chatbot (MANTIDO) -->
-      <div class="card">
-        <div class="cardTitle">🤖 Chatbot</div>
+      <!-- Card Chatbot (FIX 8: Destacado) -->
+      <div class="card card-highlight">
+        <div class="cardTitle">🤖 Assistente IA</div>
         
         <div class="ia-section">
-          <div class="row">
-            <label>Persona / Nome do Assistente</label>
-            <input id="persona" placeholder="Ex: Assistente da Loja X" />
+          <div class="field-group">
+            <label class="label-large">Persona / Nome do Assistente</label>
+            <input id="persona" class="input-large" placeholder="Ex: Assistente da Loja Premium" />
+            <p class="hint">Define a personalidade e nome que a IA usará nas respostas</p>
           </div>
           
-          <div class="row">
-            <label>Contexto do Negócio</label>
+          <div class="field-group">
+            <label class="label-large">Contexto do Negócio</label>
             <textarea id="businessContext" rows="4" placeholder="Descreva seu negócio, produtos, tom de voz..."></textarea>
+            <p class="hint">Informações sobre seu negócio que a IA usará como base</p>
           </div>
 
-          <div class="row">
-            <label class="check">
+          <div class="toggle-section">
+            <label class="toggle-card">
               <input type="checkbox" id="autoSuggest" />
-              <span>Auto-sugerir respostas</span>
+              <div class="toggle-content">
+                <span class="toggle-text">⚡ Auto-sugestão de Respostas</span>
+                <span class="toggle-hint">Gera sugestões automáticas baseadas na conversa</span>
+              </div>
             </label>
-            <label class="check">
+            
+            <label class="toggle-card">
               <input type="checkbox" id="autoMemory" />
-              <span>Auto-memória (Leão)</span>
+              <div class="toggle-content">
+                <span class="toggle-text">🧠 Auto-memória (Leão)</span>
+                <span class="toggle-hint">Aprende automaticamente com cada conversa</span>
+              </div>
             </label>
           </div>
         </div>
 
         <p class="hint">
-          Dica: No WhatsApp Web, use o botão <b>🤖</b> para abrir o painel.
+          💡 <b>Dica:</b> No WhatsApp Web, use o botão <b>🤖</b> para abrir o painel.
         </p>
       </div>
 

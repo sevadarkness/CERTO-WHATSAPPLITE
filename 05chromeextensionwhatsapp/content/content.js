@@ -185,11 +185,13 @@
     }
 
     if (message.type === 'SEND_TEAM_MESSAGES') {
+      // FIX 2: Executar diretamente no content script com sendResponse
       (async () => {
         try {
           const { members, message: msg, senderName } = message.payload;
+          
           if (!members || !Array.isArray(members) || !msg) {
-            console.error('[WHL] Invalid team message data');
+            sendResponse({ ok: false, error: 'Dados inválidos' });
             return;
           }
 
@@ -197,19 +199,22 @@
           
           // Convert team members to campaign-like entries
           const entries = members.map(m => ({
-            name: m.name,
-            number: m.phone,
+            name: m.name || '', // FIX 4: Nome opcional
+            number: normalizePhoneNumber(m.phone), // FIX 3: Usar normalização
             vars: {}
           }));
 
           // Execute as a campaign
           await executeDomCampaignDirectly(entries, msg, null);
           
+          sendResponse({ ok: true, sent: entries.length });
         } catch (e) {
           console.error('[WHL] Error sending team messages:', e);
+          sendResponse({ ok: false, error: e.message || String(e) });
         }
       })();
-      return true; // Keep channel open for async response
+      
+      return true; // CRÍTICO: manter canal aberto para resposta assíncrona
     }
   });
 
@@ -223,10 +228,17 @@
 
     for (let i = 0; i < entries.length; i++) {
       const e = entries[i];
-      debugLog(`[${i+1}/${entries.length}] Processing scheduled:`, e.number);
+      
+      // FIX 3: Usar normalizePhoneNumber para normalização inteligente
+      const normalizedNumber = normalizePhoneNumber(e.number);
+      const phoneDigits = normalizedNumber.replace(/[^\d]/g, '');
+      
+      // FIX 4: Nome é opcional - usar número se não tiver nome
+      const displayName = e.name || phoneDigits;
+      
+      debugLog(`[${i+1}/${entries.length}] Processing: ${displayName} (${phoneDigits})`);
       
       const text = applyVars(msg || '', e).trim();
-      const phoneDigits = e.number.replace(/[^\d]/g, '');
 
       try {
         debugLog('Opening chat...');
@@ -252,10 +264,10 @@
           await sleep(500);
         }
 
-        debugLog(`✅ Success for ${e.number}`);
+        debugLog(`✅ Success for ${displayName}`);
       } catch (err) {
-        debugLog(`❌ Error for ${e.number}:`, err);
-        console.error(`[WHL] Error for ${e.number}:`, err);
+        debugLog(`❌ Error for ${displayName}:`, err);
+        console.error(`[WHL] Error for ${displayName}:`, err);
       }
 
       // Delay between messages
@@ -759,55 +771,123 @@
     return btn;
   }
 
+  // FIX 5: Envio de Imagem (DOM) - Melhorias
   async function attachMediaAndSend(mediaPayload, captionText) {
     if (!mediaPayload?.base64) throw new Error('Mídia não carregada.');
-    const attachBtn = findAttachButton();
-    if (!attachBtn) throw new Error('Não encontrei o botão de anexo (📎).');
+    
+    debugLog('Iniciando envio de mídia...');
+    
+    // 1. Encontrar botão de anexo com múltiplos seletores
+    const attachSelectors = [
+      'span[data-icon="plus"]',
+      'span[data-icon="attach-menu-plus"]', 
+      'span[data-icon="clip"]',
+      '[data-testid="attach-menu-plus"]',
+      'button[aria-label*="Anexar"]',
+      'button[title*="Anexar"]'
+    ];
+    
+    let attachBtn = null;
+    for (const sel of attachSelectors) {
+      const el = document.querySelector(sel);
+      if (el) {
+        attachBtn = el.closest('button') || el.closest('div[role="button"]') || el;
+        if (attachBtn) {
+          debugLog('Botão de anexo encontrado:', sel);
+          break;
+        }
+      }
+    }
+    
+    if (!attachBtn) throw new Error('Botão de anexo não encontrado.');
 
     attachBtn.click();
-    await sleep(450);
+    await sleep(800); // Aumentar tempo para menu abrir
 
-    const input = findBestFileInput();
-    if (!input) throw new Error('Não encontrei o input de arquivo do WhatsApp.');
+    // 2. Encontrar input de arquivo
+    const inputSelectors = [
+      'input[type="file"][accept*="image"]',
+      'input[type="file"][accept*="video"]',
+      'input[type="file"]'
+    ];
+    
+    let input = null;
+    for (const sel of inputSelectors) {
+      input = document.querySelector(sel);
+      if (input && input.isConnected) {
+        debugLog('Input de arquivo encontrado:', sel);
+        break;
+      }
+    }
+    
+    if (!input) throw new Error('Input de arquivo não encontrado.');
 
+    // 3. Criar arquivo e disparar eventos
     const bytes = b64ToBytes(mediaPayload.base64);
-    const blob = new Blob([bytes], { type: mediaPayload.type || 'image/*' });
-    const file = new File([blob], mediaPayload.name || 'image', { type: blob.type });
+    const mimeType = mediaPayload.type || 'image/jpeg';
+    const fileName = mediaPayload.name || `image_${Date.now()}.jpg`;
+    
+    const blob = new Blob([bytes], { type: mimeType });
+    const file = new File([blob], fileName, { type: mimeType, lastModified: Date.now() });
 
     const dt = new DataTransfer();
     dt.items.add(file);
     input.files = dt.files;
+    
+    // Disparar múltiplos eventos para garantir detecção
     input.dispatchEvent(new Event('change', { bubbles: true }));
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    
+    debugLog('Arquivo anexado, aguardando preview...');
 
-    // Wait preview/dialog
+    // 4. Aguardar preview com timeout maior
     let sendBtn = null;
-    for (let i = 0; i < 40; i++) {
-      await sleep(250);
-      sendBtn = findMediaSendButton();
-      if (sendBtn) break;
-    }
-    if (!sendBtn) throw new Error('Preview de mídia não apareceu (botão enviar não encontrado).');
-
-    // Caption
-    const cap = safeText(captionText).trim();
-    if (cap) {
-      const box = findMediaCaptionBox();
-      if (box) {
-        box.focus();
-        try {
-          document.execCommand('selectAll', false, null);
-          document.execCommand('insertText', false, cap);
-          box.dispatchEvent(new InputEvent('input', { bubbles: true }));
-        } catch (_) {
-          box.textContent = cap;
-          box.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    const maxAttempts = 60; // 18 segundos
+    
+    for (let i = 0; i < maxAttempts; i++) {
+      await sleep(300);
+      
+      // Múltiplos seletores para botão de envio na dialog
+      const sendSelectors = [
+        '[data-testid="send"]',
+        'span[data-icon="send"]',
+        'button[aria-label*="Enviar"]',
+        'div[role="button"][aria-label*="Enviar"]'
+      ];
+      
+      for (const sel of sendSelectors) {
+        const btn = document.querySelector(`div[role="dialog"] ${sel}, [data-testid="media-viewer"] ${sel}`);
+        if (btn) {
+          sendBtn = btn.closest('button') || btn.closest('div[role="button"]') || btn;
+          break;
         }
+      }
+      
+      if (sendBtn) {
+        debugLog('Botão de envio encontrado após', i * 300, 'ms');
+        break;
+      }
+    }
+    
+    if (!sendBtn) throw new Error('Preview não apareceu ou botão enviar não encontrado.');
+
+    // 5. Adicionar legenda se houver
+    if (captionText?.trim()) {
+      const captionBox = document.querySelector('div[role="dialog"] [contenteditable="true"]');
+      if (captionBox) {
+        captionBox.focus();
+        document.execCommand('selectAll', false, null);
+        document.execCommand('insertText', false, captionText.trim());
+        captionBox.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        await sleep(200);
       }
     }
 
-    await sleep(120);
+    // 6. Clicar enviar
     sendBtn.click();
-    await sleep(900);
+    await sleep(1500);
+    
+    debugLog('Mídia enviada com sucesso!');
     return true;
   }
 
@@ -830,6 +910,36 @@
       ta.remove();
       return true;
     }
+  }
+
+  // -------------------------
+  // Phone Normalization (FIX 3)
+  // -------------------------
+  function normalizePhoneNumber(phone) {
+    // Remover tudo exceto dígitos e +
+    let digits = String(phone || '').replace(/[^\d+]/g, '');
+    
+    // Se não tem +, assumir Brasil (+55)
+    if (!digits.startsWith('+')) {
+      // Se começa com 55, adicionar +
+      if (digits.startsWith('55') && digits.length >= 12) {
+        digits = '+' + digits;
+      } else {
+        digits = '+55' + digits;
+      }
+    }
+    
+    // Extrair apenas dígitos para validação
+    const onlyDigits = digits.replace(/\D/g, '');
+    
+    // Validar tamanho (mínimo 10, máximo 15 dígitos)
+    if (onlyDigits.length < 10 || onlyDigits.length > 15) {
+      debugLog('[WHL] Número possivelmente inválido:', phone, '→', digits);
+    }
+    
+    // NÃO forçar dígito 9 - números fixos e alguns celulares antigos não têm
+    // Retornar como está, respeitando o formato original
+    return digits;
   }
 
   function parseNumbersFromText(text) {
@@ -975,7 +1085,7 @@
     const VALIDATION_SKIP_THRESHOLD = 15; // Skip validation after this many attempts
     const PHONE_SUFFIX_MATCH_LENGTH = 8;  // Match last 8 digits for validation
     
-    // Verificar se composer apareceu E se estamos no chat correto
+    // VALIDAÇÃO CRÍTICA: Verificar se chat correto foi aberto (FIX 6)
     debugLog('Verificando se composer apareceu e chat está correto...');
     for (let i = 0; i < MAX_COMPOSER_CHECK_ATTEMPTS; i++) {
       await sleep(COMPOSER_CHECK_DELAY_MS);
@@ -1477,15 +1587,16 @@ ${transcript || '(não consegui ler mensagens)'}
     const style = document.createElement('style');
     style.textContent = `
       :host{
-        --bg: rgba(10, 12, 24, 0.88);
-        --panel: rgba(13, 16, 32, 0.92);
+        --bg: rgba(10, 12, 24, 0.95);
+        --panel: rgba(13, 16, 32, 0.95);
         --stroke: rgba(255,255,255,.10);
         --stroke2: rgba(139,92,246,.35);
         --stroke3: rgba(59,130,246,.25);
-        --text: rgba(240,243,255,.95);
-        --muted: rgba(240,243,255,.70);
-        --danger: #ff4d4f;
-        --ok: rgba(120, 255, 190, .95);
+        --text: rgba(255, 255, 255, 0.95);
+        --text-secondary: rgba(255, 255, 255, 0.80);
+        --muted: rgba(255, 255, 255, 0.65);
+        --danger: #ef4444;
+        --ok: #22c55e;
         --accent: #8b5cf6;
         --accent2: #3b82f6;
         --shadow: 0 18px 60px rgba(0,0,0,.45);
@@ -1664,12 +1775,22 @@ ${transcript || '(não consegui ler mensagens)'}
       .status{
         font-size: 11px;
         margin-top: 8px;
-        color: var(--muted);
+        color: var(--text) !important;
         white-space: pre-wrap;
         line-height:1.35;
       }
-      .status.ok{ color: var(--ok); }
-      .status.err{ color: var(--danger); }
+      .status.ok{ color: var(--ok) !important; }
+      .status.err{ color: var(--danger) !important; }
+      
+      /* FIX 7: Garantir texto branco em todas as áreas */
+      #chatOut, .chatOut {
+        color: white !important;
+        background: rgba(5, 7, 15, 0.7) !important;
+      }
+      
+      p, span, div, label {
+        color: var(--text) !important;
+      }
 
       .list a{
         display:block;
@@ -3848,74 +3969,126 @@ ${transcript || '(não consegui ler mensagens)'}
   // -------------------------
   let quickRepliesListener = null;
 
+  // -------------------------
+  // Quick Replies - Autocomplete Inline (NEW)
+  // -------------------------
+  function createQuickReplySuggestionUI() {
+    const suggestionBox = document.createElement('div');
+    suggestionBox.id = 'whl-quick-reply-suggestion';
+    suggestionBox.style.cssText = `
+      position: fixed;
+      background: rgba(17, 20, 36, 0.95);
+      border: 1px solid rgba(139, 92, 246, 0.5);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: white;
+      font-size: 13px;
+      cursor: pointer;
+      z-index: 9999;
+      display: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      max-width: 400px;
+    `;
+    document.body.appendChild(suggestionBox);
+    return suggestionBox;
+  }
+
+  function showQuickReplySuggestion(composer, quickReply) {
+    let box = document.getElementById('whl-quick-reply-suggestion');
+    if (!box) {
+      box = createQuickReplySuggestionUI();
+    }
+    
+    const rect = composer.getBoundingClientRect();
+    
+    box.innerHTML = `
+      <div style="font-size: 11px; color: #888; margin-bottom: 4px;">Resposta rápida:</div>
+      <div style="font-weight: 600;">/${quickReply.trigger}</div>
+      <div style="margin-top: 4px; color: #ccc;">${quickReply.response.slice(0, 100)}${quickReply.response.length > 100 ? '...' : ''}</div>
+    `;
+    
+    box.style.bottom = (window.innerHeight - rect.top + 10) + 'px';
+    box.style.left = rect.left + 'px';
+    box.style.display = 'block';
+    
+    // Click handler - substituir texto
+    box.onclick = async () => {
+      try {
+        debugLog('Quick reply suggestion clicked:', quickReply.trigger);
+        await insertIntoComposer(quickReply.response, false, false);
+        hideQuickReplySuggestion();
+      } catch (e) {
+        debugLog('Error inserting quick reply:', e);
+      }
+    };
+  }
+
+  function hideQuickReplySuggestion() {
+    const box = document.getElementById('whl-quick-reply-suggestion');
+    if (box) box.style.display = 'none';
+  }
+
   async function initQuickRepliesListener() {
     // Prevent multiple listeners
     if (quickRepliesListener) return;
 
-    quickRepliesListener = async (event) => {
-      // Only listen for Enter key
-      if (event.key !== 'Enter' || event.shiftKey || event.ctrlKey) return;
+    // Create suggestion UI
+    createQuickReplySuggestionUI();
 
+    // Input listener for real-time detection
+    const inputListener = async () => {
       try {
         const composer = findComposer();
         if (!composer) return;
 
-        const text = (composer.textContent || composer.innerText || '').trim();
+        const text = composer.textContent || composer.innerText || '';
         
-        // Check if text starts with /
-        if (!text.startsWith('/')) return;
-
-        // Get quick replies from settings
-        const settings = await getSettingsCached();
-        const quickReplies = settings.quickReplies || [];
-        
-        if (!quickReplies.length) return;
-
-        // Extract trigger (remove leading /)
-        const trigger = text.substring(1).toLowerCase().trim();
-        
-        // Find matching quick reply
-        const match = quickReplies.find(qr => 
-          qr.trigger && qr.trigger.toLowerCase() === trigger
-        );
-
-        if (match && match.response) {
-          // Prevent default Enter behavior
-          event.preventDefault();
-          event.stopPropagation();
-
-          debugLog('Quick reply matched:', trigger, '→', match.response.slice(0, 50));
-
-          // Clear composer properly using same methods as insertIntoComposer
-          composer.focus();
-          try {
-            document.execCommand('selectAll', false, null);
-            document.execCommand('delete', false, null);
-            composer.dispatchEvent(new InputEvent('input', { bubbles: true }));
-          } catch (e) {
-            // Fallback to direct manipulation if execCommand fails
-            composer.textContent = '';
-            composer.dispatchEvent(new InputEvent('input', { bubbles: true }));
-          }
-          await sleep(100);
-
-          // Insert quick reply response
-          await insertIntoComposer(match.response, false, false);
-          await sleep(200);
-
-          // Optional: auto-send (can be enabled with a setting later)
-          // await clickSend(false);
+        // Verificar se texto começa com /
+        if (text.startsWith('/')) {
+          const trigger = text.slice(1).toLowerCase(); // remover /
+          const settings = await getSettingsCached();
+          const quickReplies = settings.quickReplies || [];
           
-          debugLog('✅ Quick reply inserted successfully');
+          // Buscar match
+          const match = quickReplies.find(qr => 
+            qr.trigger && (
+              qr.trigger.toLowerCase() === trigger ||
+              qr.trigger.toLowerCase().startsWith(trigger)
+            )
+          );
+          
+          if (match) {
+            showQuickReplySuggestion(composer, match);
+          } else {
+            hideQuickReplySuggestion();
+          }
+        } else {
+          hideQuickReplySuggestion();
         }
       } catch (e) {
-        debugLog('Quick reply error:', e);
+        debugLog('Quick reply input error:', e);
       }
     };
 
-    // Add listener to document
-    document.addEventListener('keydown', quickRepliesListener, true);
-    debugLog('✅ Quick replies listener initialized');
+    // Add input listener with debouncing
+    let debounceTimer;
+    quickRepliesListener = () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(inputListener, 100);
+    };
+
+    // Listen on document for input events (bubbles up from composer)
+    document.addEventListener('input', quickRepliesListener, true);
+    
+    // Hide suggestion when clicking outside
+    document.addEventListener('click', (e) => {
+      const box = document.getElementById('whl-quick-reply-suggestion');
+      if (box && !box.contains(e.target)) {
+        hideQuickReplySuggestion();
+      }
+    }, true);
+    
+    debugLog('✅ Quick replies autocomplete initialized');
   }
 
   // Mount when possible (document_start friendly)

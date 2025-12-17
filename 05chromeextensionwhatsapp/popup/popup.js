@@ -338,18 +338,17 @@ el("addQuickReply").addEventListener("click", addQuickReply);
 // -------------------------
 function addTeamMember() {
   const name = el("memberName").value.trim();
-  const phone = el("memberPhone").value.trim().replace(/\D/g, '');
+  let phone = el("memberPhone").value.trim().replace(/\D/g, '');
   
-  if (!name || !phone) {
-    setStatus("Preencha nome e número", false);
+  // FIX 4: Nome é OPCIONAL, apenas número é obrigatório
+  if (!phone) {
+    setStatus("Preencha o número", false);
     return;
   }
   
-  // Validate phone number length considering international formats
-  // 10-11 digits: local/national format
-  // 12-15 digits: international format with country code
+  // FIX 3: Validação flexível: 10-15 dígitos (aceita fixos e celulares)
   if (phone.length < 10 || phone.length > 15) {
-    setStatus("Número inválido (10-15 dígitos esperados)", false);
+    setStatus("Número deve ter entre 10 e 15 dígitos", false);
     return;
   }
   
@@ -361,7 +360,7 @@ function addTeamMember() {
   
   const newMember = {
     id: `tm_${Date.now()}`,
-    name,
+    name: name || '', // FIX 4: Permite vazio
     phone,
     selected: false,
     createdAt: new Date().toISOString()
@@ -490,27 +489,41 @@ async function sendToTeam() {
     return;
   }
   
-  // Formatar mensagem com nome do remetente
   const fullMessage = senderName ? `*${senderName}:* ${message}` : message;
   
   setStatus(`Enviando para ${selectedMembers.length} membro(s)...`, true);
   
   try {
-    const response = await send("SEND_TO_TEAM", {
-      payload: {
-        members: selectedMembers,
-        message: fullMessage,
-        senderName
-      }
+    // FIX 2: Usar Promise wrapper para garantir resposta
+    const response = await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('Timeout: WhatsApp Web não respondeu em 60s'));
+      }, 60000);
+      
+      chrome.runtime.sendMessage({
+        type: "SEND_TO_TEAM",
+        payload: {
+          members: selectedMembers,
+          message: fullMessage,
+          senderName
+        }
+      }, (resp) => {
+        clearTimeout(timeout);
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+        } else {
+          resolve(resp);
+        }
+      });
     });
     
-    if (response.ok) {
+    if (response?.ok) {
       setStatus(`✅ Enviado para ${selectedMembers.length} membro(s)!`, true);
       el("teamMessage").value = "";
       clearSelection();
       updateMessagePreview();
     } else {
-      setStatus(`❌ Erro: ${response.error}`, false);
+      setStatus(`❌ Erro: ${response?.error || 'Falha desconhecida'}`, false);
     }
   } catch (e) {
     setStatus(`❌ Erro: ${e.message}`, false);

@@ -574,28 +574,34 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
 
       // -------------------------
-      // Team Messaging
+      // Team Messaging (FIX 2)
       // -------------------------
       if (msg.type === "SEND_TO_TEAM") {
         const { members, message, senderName } = msg.payload;
         
-        try {
-          // Send message to content script to process team messages
-          const tabs = await chrome.tabs.query({ url: "https://web.whatsapp.com/*" });
-          if (tabs.length === 0) {
-            throw new Error("WhatsApp Web não está aberto. Abra uma aba do WhatsApp Web e tente novamente.");
+        // Converter para Promise-based para evitar erro de canal assíncrono
+        (async () => {
+          try {
+            const tabs = await chrome.tabs.query({ url: "https://web.whatsapp.com/*" });
+            if (tabs.length === 0) {
+              sendResponse({ ok: false, error: "WhatsApp Web não está aberto." });
+              return;
+            }
+
+            // Usar chrome.tabs.sendMessage com Promise
+            const response = await chrome.tabs.sendMessage(tabs[0].id, {
+              type: "SEND_TEAM_MESSAGES",
+              payload: { members, message, senderName }
+            });
+            
+            sendResponse({ ok: true, ...response });
+          } catch (e) {
+            console.error('[WHL] SEND_TO_TEAM error:', e);
+            sendResponse({ ok: false, error: e.message || String(e) });
           }
-
-          // Send to the first WhatsApp Web tab found
-          await chrome.tabs.sendMessage(tabs[0].id, {
-            type: "SEND_TEAM_MESSAGES",
-            payload: { members, message, senderName }
-          });
-
-          return ok(sendResponse, { ok: true, queued: members.length });
-        } catch (e) {
-          return fail(sendResponse, e);
-        }
+        })();
+        
+        return true; // Manter canal aberto
       }
 
       // -------------------------
