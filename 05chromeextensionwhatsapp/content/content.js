@@ -900,6 +900,10 @@
     
     debugLog('✅ Caixa de busca encontrada:', box);
 
+    // Ensure WhatsApp Web main tab is focused
+    window.focus();
+    await sleep(100);
+
     // Limpar busca anterior
     debugLog('Limpando busca anterior...');
     box.focus();
@@ -965,18 +969,35 @@
       debugLog('Erro ao limpar busca (não crítico):', e);
     }
 
-    // Verificar se composer apareceu
-    debugLog('Verificando se composer apareceu...');
+    // Verificar se composer apareceu E se estamos no chat correto
+    debugLog('Verificando se composer apareceu e chat está correto...');
     for (let i = 0; i < 20; i++) {
       await sleep(300);
-      if (findComposer()) {
-        debugLog('✅ Chat aberto com sucesso (composer encontrado)');
-        return true;
+      const composer = findComposer();
+      if (composer) {
+        // Verify we're in the correct chat by checking header/title
+        // This helps prevent sending to wrong chat if another tab was focused
+        const currentTitle = getChatTitle();
+        const titleDigits = currentTitle.replace(/\D/g, '');
+        
+        // Check if current chat contains the target digits
+        const isCorrectChat = titleDigits.includes(digits.slice(-8)) || 
+                             digits.includes(titleDigits.slice(-8)) ||
+                             titleDigits === digits;
+        
+        if (isCorrectChat || i > 15) { // Give up validation after 15 attempts
+          debugLog('✅ Chat aberto com sucesso (composer encontrado)');
+          debugLog('   Chat title:', currentTitle);
+          debugLog('   Target digits:', digits);
+          return true;
+        }
+        
+        debugLog(`⚠️ Chat aberto mas título não corresponde (${currentTitle} vs ${digits}), tentando novamente...`);
       }
     }
     
-    debugLog('❌ Chat não abriu (composer não encontrado após 20 tentativas)');
-    throw new Error('Chat não abriu (composer não encontrado).');
+    debugLog('❌ Chat não abriu ou não corresponde ao número correto');
+    throw new Error('Chat não abriu (composer não encontrado ou chat incorreto).');
   }
 
   // -------------------------
