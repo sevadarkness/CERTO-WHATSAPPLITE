@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>SmartBot IA Core - Test</title>
+</head>
+<body>
+    <h1>SmartBot IA Core - Test de Carregamento</h1>
+    <pre id="output"></pre>
+    
+    <script src="smartbot-ia-core.js"></script>
+    <script>
+        const output = document.getElementById('output');
+        
+        function log(msg) {
+            output.textContent += msg + '\n';
+        }
+        
+        // Test 1: Check if SmartBotIA is available
+        log('Test 1: Verificando se SmartBotIA está disponível...');
+        if (typeof window.SmartBotIA !== 'undefined') {
+            log('✅ SmartBotIA está disponível globalmente');
+            log(`   Versão: ${window.SmartBotIA.version}`);
+        } else {
+            log('❌ SmartBotIA NÃO está disponível');
+        }
+        
+        // Test 2: List all available classes
+        log('\nTest 2: Classes disponíveis:');
+        const classes = Object.keys(window.SmartBotIA).filter(k => 
+            typeof window.SmartBotIA[k] === 'function' && 
+            k !== 'Core' && 
+            k[0] === k[0].toUpperCase()
+        );
+        log(`   Total: ${classes.length} classes`);
+        classes.forEach(c => log(`   - ${c}`));
+        
+        // Test 3: Initialize Core
+        log('\nTest 3: Inicializando SmartBotIACore...');
+        try {
+            const smartbot = new window.SmartBotIA.Core();
+            log('✅ SmartBotIACore instanciado com sucesso');
+            
+            // Test 4: Initialize
+            log('\nTest 4: Chamando initialize()...');
+            smartbot.initialize({
+                bot: { name: 'TestBot' },
+                features: { autoResponse: true }
+            }).then(() => {
+                log('✅ Sistema inicializado com sucesso');
+                
+                // Test 5: Process message
+                log('\nTest 5: Processando mensagem de teste...');
+                return smartbot.processMessage('test-client-1', 'Olá, bom dia!', {
+                    clientName: 'Cliente Teste'
+                });
+            }).then(result => {
+                log('✅ Mensagem processada:');
+                log(`   Intent: ${result.intent}`);
+                log(`   Confidence: ${result.confidence}`);
+                log(`   Response: ${result.response}`);
+                
+                // Test 6: Get report
+                log('\nTest 6: Gerando relatório...');
+                const report = smartbot.getReport();
+                log('✅ Relatório gerado:');
+                log(`   Total Messages: ${report.summary.totalMessages}`);
+                log(`   Auto Responses: ${report.summary.autoResponses}`);
+                log(`   Automation Rate: ${report.summary.automationRate}%`);
+                
+                log('\n🎉 Todos os testes passaram com sucesso!');
+            }).catch(err => {
+                log('❌ Erro: ' + err.message);
+            });
+        } catch (err) {
+            log('❌ Erro ao instanciar: ' + err.message);
+        }
+    </script>
+</body>
+</html>
