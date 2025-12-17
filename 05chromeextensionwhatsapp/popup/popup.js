@@ -444,11 +444,11 @@ function renderTeamMembers(members) {
 function formatPhone(phone) {
   // Handle different phone number formats
   if (phone.length === 13) {
-    // International format: +55 11 99999-9999
+    // International format: +55 11 99999-9999 (Brazil)
     return phone.replace(/(\d{2})(\d{2})(\d{5})(\d{4})/, '+$1 ($2) $3-$4');
   } else if (phone.length === 12) {
-    // International format without Brazil: +1 999 999-9999
-    return phone.replace(/(\d{1,3})(\d{3})(\d{3})(\d{4})/, '+$1 $2 $3-$4');
+    // International format: +1 234 567-8901 (USA/Canada)
+    return phone.replace(/(\d{1})(\d{3})(\d{3})(\d{4})/, '+$1 ($2) $3-$4');
   } else if (phone.length === 11) {
     // National format: (11) 99999-9999
     return phone.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
@@ -456,9 +456,10 @@ function formatPhone(phone) {
     // National format: (11) 9999-9999
     return phone.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
   } else if (phone.length >= 14) {
-    // Very long international format
+    // Very long international format - show country code + rest
     return phone.replace(/(\d{2})(\d+)/, '+$1 $2');
   }
+  // Fallback: just return as-is if format unknown
   return phone;
 }
 

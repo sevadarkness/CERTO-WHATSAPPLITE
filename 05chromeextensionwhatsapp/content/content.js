@@ -969,10 +969,16 @@
       debugLog('Erro ao limpar busca (não crítico):', e);
     }
 
+    // Configuration: validation parameters
+    const MAX_COMPOSER_CHECK_ATTEMPTS = 20;
+    const COMPOSER_CHECK_DELAY_MS = 300;
+    const VALIDATION_SKIP_THRESHOLD = 15; // Skip validation after this many attempts
+    const PHONE_SUFFIX_MATCH_LENGTH = 8;  // Match last 8 digits for validation
+    
     // Verificar se composer apareceu E se estamos no chat correto
     debugLog('Verificando se composer apareceu e chat está correto...');
-    for (let i = 0; i < 20; i++) {
-      await sleep(300);
+    for (let i = 0; i < MAX_COMPOSER_CHECK_ATTEMPTS; i++) {
+      await sleep(COMPOSER_CHECK_DELAY_MS);
       const composer = findComposer();
       if (composer) {
         // Verify we're in the correct chat by checking header/title
@@ -981,14 +987,20 @@
         const titleDigits = currentTitle.replace(/\D/g, '');
         
         // Check if current chat contains the target digits
-        const isCorrectChat = titleDigits.includes(digits.slice(-8)) || 
-                             digits.includes(titleDigits.slice(-8)) ||
+        // We match the last N digits to handle international prefixes flexibly
+        const isCorrectChat = titleDigits.includes(digits.slice(-PHONE_SUFFIX_MATCH_LENGTH)) || 
+                             digits.includes(titleDigits.slice(-PHONE_SUFFIX_MATCH_LENGTH)) ||
                              titleDigits === digits;
         
-        if (isCorrectChat || i > 15) { // Give up validation after 15 attempts
+        // Skip validation after threshold to avoid infinite waiting
+        // This is a fallback in case chat title doesn't include phone number
+        if (isCorrectChat || i > VALIDATION_SKIP_THRESHOLD) {
           debugLog('✅ Chat aberto com sucesso (composer encontrado)');
           debugLog('   Chat title:', currentTitle);
           debugLog('   Target digits:', digits);
+          if (!isCorrectChat) {
+            debugLog('   ⚠️ Validation skipped after threshold - proceeding with caution');
+          }
           return true;
         }
         
@@ -3874,8 +3886,17 @@ ${transcript || '(não consegui ler mensagens)'}
 
           debugLog('Quick reply matched:', trigger, '→', match.response.slice(0, 50));
 
-          // Clear composer
-          composer.textContent = '';
+          // Clear composer properly using same methods as insertIntoComposer
+          composer.focus();
+          try {
+            document.execCommand('selectAll', false, null);
+            document.execCommand('delete', false, null);
+            composer.dispatchEvent(new InputEvent('input', { bubbles: true }));
+          } catch (e) {
+            // Fallback to direct manipulation if execCommand fails
+            composer.textContent = '';
+            composer.dispatchEvent(new InputEvent('input', { bubbles: true }));
+          }
           await sleep(100);
 
           // Insert quick reply response
