@@ -5560,4 +5560,939 @@ wa.smartbot.salvar()
     if (window.wa && window.wa.helper) window.initSmartBot();
   }, 3000);
 
+  // ============================================================
+  // TEMPLATE ENGINE - MOTOR DE TEMPLATES
+  // Sistema avançado de processamento de templates com variáveis,
+  // funções e condicionais
+  // ============================================================
+
+  class TemplateEngine {
+    constructor() {
+      this.templates = new Map();
+      this.functions = {
+        upper: (text) => text.toUpperCase(),
+        lower: (text) => text.toLowerCase(),
+        capitalize: (text) => text.charAt(0).toUpperCase() + text.slice(1).toLowerCase(),
+        date: (format) => this.formatDate(new Date(), format),
+        random: (min, max) => Math.floor(Math.random() * (parseInt(max) - parseInt(min) + 1)) + parseInt(min)
+      };
+    }
+
+    // Registrar template
+    register(name, template, metadata = {}) {
+      this.templates.set(name, {
+        content: template,
+        metadata: { ...metadata, createdAt: Date.now(), usageCount: 0 }
+      });
+    }
+
+    // Processar template com variáveis
+    process(templateNameOrContent, variables = {}) {
+      let content = this.templates.has(templateNameOrContent) 
+        ? this.templates.get(templateNameOrContent).content 
+        : templateNameOrContent;
+      
+      // Substituir variáveis {{variavel}}
+      content = content.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+        return variables[key] !== undefined ? variables[key] : match;
+      });
+      
+      // Processar funções {{funcao:param}}
+      content = this._processFunctions(content);
+      
+      // Processar condicionais {{#if}}...{{/if}}
+      content = this._processConditionals(content, variables);
+      
+      return content;
+    }
+
+    _processFunctions(content) {
+      return content.replace(/\{\{(\w+):([^}]+)\}\}/g, (match, func, params) => {
+        if (this.functions[func]) {
+          const args = params.split(',').map(p => p.trim());
+          return this.functions[func](...args);
+        }
+        return match;
+      });
+    }
+
+    _processConditionals(content, variables) {
+      const ifRegex = /\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g;
+      return content.replace(ifRegex, (match, condition, inner) => {
+        return variables[condition] ? inner : '';
+      });
+    }
+
+    // Validar template
+    validate(template) {
+      const errors = [];
+      
+      // Verificar chaves não fechadas
+      const openBraces = (template.match(/\{\{/g) || []).length;
+      const closeBraces = (template.match(/\}\}/g) || []).length;
+      if (openBraces !== closeBraces) {
+        errors.push('Chaves não balanceadas');
+      }
+      
+      // Verificar condicionais
+      const ifCount = (template.match(/\{\{#if/g) || []).length;
+      const endIfCount = (template.match(/\{\{\/if\}\}/g) || []).length;
+      if (ifCount !== endIfCount) {
+        errors.push('Condicionais não balanceadas');
+      }
+      
+      return { valid: errors.length === 0, errors };
+    }
+
+    // Extrair variáveis do template
+    extractVariables(template) {
+      const vars = new Set();
+      const regex = /\{\{(\w+)\}\}/g;
+      let match;
+      while ((match = regex.exec(template)) !== null) {
+        if (!this.functions[match[1]]) {
+          vars.add(match[1]);
+        }
+      }
+      return Array.from(vars);
+    }
+
+    formatDate(date, format) {
+      const pad = (n) => n.toString().padStart(2, '0');
+      return format
+        .replace('YYYY', date.getFullYear())
+        .replace('MM', pad(date.getMonth() + 1))
+        .replace('DD', pad(date.getDate()))
+        .replace('HH', pad(date.getHours()))
+        .replace('mm', pad(date.getMinutes()));
+    }
+  }
+
+  // ============================================================
+  // CAMPAIGN SCHEDULER - AGENDADOR DE CAMPANHAS
+  // Sistema de agendamento com persistência e retry automático
+  // ============================================================
+
+  class CampaignScheduler {
+    constructor() {
+      this.scheduledCampaigns = new Map();
+      this.executionHistory = [];
+      this.timers = new Map();
+    }
+
+    async initialize() {
+      await this.loadFromStorage();
+      this.resumeScheduledCampaigns();
+      console.log('[Scheduler] ✅ Inicializado com', this.scheduledCampaigns.size, 'campanhas');
+    }
+
+    // Agendar campanha
+    schedule(campaignId, campaignData, scheduleTime, options = {}) {
+      const scheduledAt = new Date(scheduleTime).getTime();
+      const now = Date.now();
+      
+      if (scheduledAt <= now) {
+        throw new Error('Data de agendamento deve ser no futuro');
+      }
+
+      const scheduled = {
+        id: campaignId,
+        data: campaignData,
+        scheduledAt,
+        createdAt: now,
+        status: 'scheduled',
+        options: {
+          retryOnFail: options.retryOnFail || false,
+          maxRetries: options.maxRetries || 3,
+          notifyOnComplete: options.notifyOnComplete || true,
+          ...options
+        }
+      };
+
+      this.scheduledCampaigns.set(campaignId, scheduled);
+      this._setTimer(campaignId, scheduledAt - now);
+      this.saveToStorage();
+
+      console.log(`[Scheduler] 📅 Campanha ${campaignId} agendada para ${new Date(scheduledAt).toLocaleString()}`);
+      return scheduled;
+    }
+
+    // Cancelar agendamento
+    cancel(campaignId) {
+      if (this.timers.has(campaignId)) {
+        clearTimeout(this.timers.get(campaignId));
+        this.timers.delete(campaignId);
+      }
+      
+      const campaign = this.scheduledCampaigns.get(campaignId);
+      if (campaign) {
+        campaign.status = 'cancelled';
+        this.executionHistory.push({ ...campaign, cancelledAt: Date.now() });
+        this.scheduledCampaigns.delete(campaignId);
+        this.saveToStorage();
+        console.log(`[Scheduler] ❌ Campanha ${campaignId} cancelada`);
+        return true;
+      }
+      return false;
+    }
+
+    // Reagendar
+    reschedule(campaignId, newScheduleTime) {
+      const campaign = this.scheduledCampaigns.get(campaignId);
+      if (!campaign) {
+        throw new Error('Campanha não encontrada');
+      }
+
+      this.cancel(campaignId);
+      return this.schedule(campaignId, campaign.data, newScheduleTime, campaign.options);
+    }
+
+    // Listar agendadas
+    listScheduled() {
+      return Array.from(this.scheduledCampaigns.values())
+        .filter(c => c.status === 'scheduled')
+        .sort((a, b) => a.scheduledAt - b.scheduledAt);
+    }
+
+    _setTimer(campaignId, delay) {
+      const timer = setTimeout(() => this._executeCampaign(campaignId), delay);
+      this.timers.set(campaignId, timer);
+    }
+
+    async _executeCampaign(campaignId) {
+      const campaign = this.scheduledCampaigns.get(campaignId);
+      if (!campaign || campaign.status !== 'scheduled') return;
+
+      console.log(`[Scheduler] 🚀 Executando campanha ${campaignId}`);
+      campaign.status = 'executing';
+
+      try {
+        // Integrar com sistema de campanhas existente
+        if (window.wa && window.wa.campaign) {
+          await window.wa.campaign.execute(campaign.data);
+        }
+        
+        campaign.status = 'completed';
+        campaign.completedAt = Date.now();
+        
+        // Disparar evento
+        window.dispatchEvent(new CustomEvent('campaign:completed', { detail: campaign }));
+        
+      } catch (error) {
+        console.error(`[Scheduler] ❌ Erro na campanha ${campaignId}:`, error);
+        campaign.status = 'failed';
+        campaign.error = error.message;
+        
+        // Retry se configurado
+        if (campaign.options.retryOnFail && (campaign.retryCount || 0) < campaign.options.maxRetries) {
+          campaign.retryCount = (campaign.retryCount || 0) + 1;
+          campaign.status = 'scheduled';
+          this._setTimer(campaignId, 60000 * campaign.retryCount); // Backoff exponencial
+        }
+      }
+
+      this.executionHistory.push({ ...campaign });
+      this.scheduledCampaigns.delete(campaignId);
+      this.saveToStorage();
+    }
+
+    async loadFromStorage() {
+      try {
+        const data = await chrome.storage.local.get('campaign_scheduler');
+        if (data.campaign_scheduler) {
+          const { scheduled, history } = data.campaign_scheduler;
+          scheduled?.forEach(c => this.scheduledCampaigns.set(c.id, c));
+          this.executionHistory = history || [];
+        }
+      } catch (e) {
+        console.warn('[Scheduler] Erro ao carregar:', e);
+      }
+    }
+
+    async saveToStorage() {
+      try {
+        await chrome.storage.local.set({
+          campaign_scheduler: {
+            scheduled: Array.from(this.scheduledCampaigns.values()),
+            history: this.executionHistory.slice(-100) // Manter últimos 100
+          }
+        });
+      } catch (e) {
+        console.warn('[Scheduler] Erro ao salvar:', e);
+      }
+    }
+
+    resumeScheduledCampaigns() {
+      const now = Date.now();
+      this.scheduledCampaigns.forEach((campaign, id) => {
+        if (campaign.status === 'scheduled') {
+          const delay = campaign.scheduledAt - now;
+          if (delay > 0) {
+            this._setTimer(id, delay);
+          } else {
+            // Executar imediatamente se já passou
+            this._executeCampaign(id);
+          }
+        }
+      });
+    }
+  }
+
+  // ============================================================
+  // REPORTING SYSTEM - SISTEMA DE RELATÓRIOS
+  // Sistema completo de métricas e geração de relatórios
+  // ============================================================
+
+  class ReportingSystem {
+    constructor() {
+      this.metrics = new Map();
+      this.reports = [];
+    }
+
+    // Registrar métrica
+    recordMetric(campaignId, metric, value) {
+      if (!this.metrics.has(campaignId)) {
+        this.metrics.set(campaignId, {
+          id: campaignId,
+          startedAt: Date.now(),
+          sent: 0,
+          delivered: 0,
+          failed: 0,
+          responses: 0,
+          timeline: []
+        });
+      }
+
+      const campaign = this.metrics.get(campaignId);
+      if (typeof campaign[metric] === 'number') {
+        campaign[metric] += value;
+      } else {
+        campaign[metric] = value;
+      }
+      
+      campaign.timeline.push({
+        metric,
+        value,
+        timestamp: Date.now()
+      });
+    }
+
+    // Gerar relatório
+    generateReport(campaignId) {
+      const metrics = this.metrics.get(campaignId);
+      if (!metrics) return null;
+
+      const duration = Date.now() - metrics.startedAt;
+      const successRate = metrics.sent > 0 ? ((metrics.delivered / metrics.sent) * 100).toFixed(1) : 0;
+      const responseRate = metrics.delivered > 0 ? ((metrics.responses / metrics.delivered) * 100).toFixed(1) : 0;
+
+      return {
+        campaignId,
+        summary: {
+          totalSent: metrics.sent,
+          delivered: metrics.delivered,
+          failed: metrics.failed,
+          responses: metrics.responses,
+          successRate: `${successRate}%`,
+          responseRate: `${responseRate}%`,
+          duration: this._formatDuration(duration)
+        },
+        timeline: this._analyzeTimeline(metrics.timeline),
+        failures: this._analyzeFailures(metrics),
+        performance: {
+          messagesPerMinute: (metrics.sent / (duration / 60000)).toFixed(2),
+          avgDeliveryTime: this._calculateAvgDeliveryTime(metrics.timeline)
+        },
+        generatedAt: new Date().toISOString()
+      };
+    }
+
+    // Comparar campanhas
+    compareReports(campaignIds) {
+      const reports = campaignIds.map(id => this.generateReport(id)).filter(Boolean);
+      
+      return {
+        campaigns: reports,
+        comparison: {
+          bestSuccessRate: reports.reduce((best, r) => 
+            parseFloat(r.summary.successRate) > parseFloat(best.summary.successRate) ? r : best
+          ),
+          bestResponseRate: reports.reduce((best, r) => 
+            parseFloat(r.summary.responseRate) > parseFloat(best.summary.responseRate) ? r : best
+          ),
+          totalMessages: reports.reduce((sum, r) => sum + r.summary.totalSent, 0)
+        }
+      };
+    }
+
+    // Exportar relatório
+    exportReport(campaignId, format = 'json') {
+      const report = this.generateReport(campaignId);
+      if (!report) return null;
+
+      switch (format) {
+        case 'json':
+          return JSON.stringify(report, null, 2);
+        case 'csv':
+          return this._toCSV(report);
+        case 'html':
+          return this._toHTML(report);
+        default:
+          return report;
+      }
+    }
+
+    _formatDuration(ms) {
+      const seconds = Math.floor(ms / 1000);
+      const minutes = Math.floor(seconds / 60);
+      const hours = Math.floor(minutes / 60);
+      
+      if (hours > 0) return `${hours}h ${minutes % 60}m`;
+      if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+      return `${seconds}s`;
+    }
+
+    _analyzeTimeline(timeline) {
+      const byHour = {};
+      timeline.forEach(t => {
+        const hour = new Date(t.timestamp).getHours();
+        byHour[hour] = (byHour[hour] || 0) + 1;
+      });
+      return byHour;
+    }
+
+    _analyzeFailures(metrics) {
+      return metrics.timeline
+        .filter(t => t.metric === 'failed')
+        .map(t => ({ timestamp: t.timestamp, count: t.value }));
+    }
+
+    _calculateAvgDeliveryTime(timeline) {
+      const deliveries = timeline.filter(t => t.metric === 'delivered');
+      if (deliveries.length < 2) return 'N/A';
+      
+      let totalDiff = 0;
+      for (let i = 1; i < deliveries.length; i++) {
+        totalDiff += deliveries[i].timestamp - deliveries[i-1].timestamp;
+      }
+      return `${(totalDiff / (deliveries.length - 1) / 1000).toFixed(1)}s`;
+    }
+
+    _toCSV(report) {
+      const lines = [
+        'Métrica,Valor',
+        `Total Enviado,${report.summary.totalSent}`,
+        `Entregues,${report.summary.delivered}`,
+        `Falhas,${report.summary.failed}`,
+        `Respostas,${report.summary.responses}`,
+        `Taxa de Sucesso,${report.summary.successRate}`,
+        `Taxa de Resposta,${report.summary.responseRate}`,
+        `Duração,${report.summary.duration}`
+      ];
+      return lines.join('\n');
+    }
+
+    _toHTML(report) {
+      return `
+      <div class="campaign-report">
+        <h2>Relatório da Campanha ${report.campaignId}</h2>
+        <table>
+          <tr><td>Total Enviado</td><td>${report.summary.totalSent}</td></tr>
+          <tr><td>Entregues</td><td>${report.summary.delivered}</td></tr>
+          <tr><td>Falhas</td><td>${report.summary.failed}</td></tr>
+          <tr><td>Respostas</td><td>${report.summary.responses}</td></tr>
+          <tr><td>Taxa de Sucesso</td><td>${report.summary.successRate}</td></tr>
+          <tr><td>Taxa de Resposta</td><td>${report.summary.responseRate}</td></tr>
+        </table>
+        <p>Gerado em: ${report.generatedAt}</p>
+      </div>
+    `;
+    }
+  }
+
+  // ============================================================
+  // ALERT SYSTEM - SISTEMA DE ALERTAS
+  // Sistema de alertas baseado em regras e thresholds
+  // ============================================================
+
+  class AlertSystem {
+    constructor() {
+      this.rules = new Map();
+      this.alerts = [];
+      this.subscribers = [];
+    }
+
+    // Adicionar regra de alerta
+    addRule(ruleId, config) {
+      const rule = {
+        id: ruleId,
+        metric: config.metric,           // 'failureRate', 'responseTime', 'queueSize'
+        condition: config.condition,     // 'gt', 'lt', 'eq', 'gte', 'lte'
+        threshold: config.threshold,
+        severity: config.severity || 'warning', // 'info', 'warning', 'critical'
+        cooldown: config.cooldown || 300000,    // 5 min default
+        lastTriggered: 0,
+        enabled: true
+      };
+      
+      this.rules.set(ruleId, rule);
+      console.log(`[Alert] ➕ Regra adicionada: ${ruleId}`);
+      return rule;
+    }
+
+    // Remover regra
+    removeRule(ruleId) {
+      return this.rules.delete(ruleId);
+    }
+
+    // Avaliar métrica contra regras
+    evaluate(metric, value, context = {}) {
+      const now = Date.now();
+      
+      this.rules.forEach((rule, ruleId) => {
+        if (!rule.enabled || rule.metric !== metric) return;
+        if (now - rule.lastTriggered < rule.cooldown) return;
+
+        if (this._checkCondition(value, rule.condition, rule.threshold)) {
+          this._triggerAlert(rule, value, context);
+          rule.lastTriggered = now;
+        }
+      });
+    }
+
+    _checkCondition(value, condition, threshold) {
+      switch (condition) {
+        case 'gt': return value > threshold;
+        case 'lt': return value < threshold;
+        case 'eq': return value === threshold;
+        case 'gte': return value >= threshold;
+        case 'lte': return value <= threshold;
+        default: return false;
+      }
+    }
+
+    _triggerAlert(rule, value, context) {
+      const alert = {
+        id: `alert_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        ruleId: rule.id,
+        severity: rule.severity,
+        metric: rule.metric,
+        value,
+        threshold: rule.threshold,
+        condition: rule.condition,
+        context,
+        triggeredAt: Date.now(),
+        acknowledged: false
+      };
+
+      this.alerts.push(alert);
+      
+      // Notificar subscribers
+      this.subscribers.forEach(callback => {
+        try {
+          callback(alert);
+        } catch (e) {
+          console.error('[Alert] Erro no subscriber:', e);
+        }
+      });
+
+      // Disparar evento DOM
+      window.dispatchEvent(new CustomEvent('alert:triggered', { detail: alert }));
+      
+      console.log(`[Alert] 🚨 ${rule.severity.toUpperCase()}: ${rule.metric} = ${value} (threshold: ${rule.threshold})`);
+      
+      return alert;
+    }
+
+    // Subscribe para alertas
+    subscribe(callback) {
+      this.subscribers.push(callback);
+      return () => {
+        this.subscribers = this.subscribers.filter(cb => cb !== callback);
+      };
+    }
+
+    // Acknowledge alerta
+    acknowledge(alertId) {
+      const alert = this.alerts.find(a => a.id === alertId);
+      if (alert) {
+        alert.acknowledged = true;
+        alert.acknowledgedAt = Date.now();
+        return true;
+      }
+      return false;
+    }
+
+    // Listar alertas ativos
+    getActiveAlerts() {
+      return this.alerts.filter(a => !a.acknowledged);
+    }
+
+    // Listar alertas por severidade
+    getAlertsBySeverity(severity) {
+      return this.alerts.filter(a => a.severity === severity);
+    }
+  }
+
+  // ============================================================
+  // NOTIFICATION SYSTEM - SISTEMA DE NOTIFICAÇÕES
+  // Sistema de notificações multi-canal com filas e templates
+  // ============================================================
+
+  class NotificationSystem {
+    constructor() {
+      this.channels = new Map();
+      this.queue = [];
+      this.processing = false;
+      this.templates = new Map();
+    }
+
+    // Registrar canal
+    registerChannel(channelId, handler) {
+      this.channels.set(channelId, {
+        id: channelId,
+        handler,
+        enabled: true,
+        stats: { sent: 0, failed: 0 }
+      });
+    }
+
+    // Registrar template de notificação
+    registerTemplate(templateId, template) {
+      this.templates.set(templateId, template);
+    }
+
+    // Enviar notificação
+    async send(channelId, notification, options = {}) {
+      const channel = this.channels.get(channelId);
+      if (!channel || !channel.enabled) {
+        throw new Error(`Canal ${channelId} não disponível`);
+      }
+
+      // Processar template se especificado
+      let message = notification.message;
+      if (notification.templateId && this.templates.has(notification.templateId)) {
+        const template = this.templates.get(notification.templateId);
+        message = this._processTemplate(template, notification.data || {});
+      }
+
+      const payload = {
+        ...notification,
+        message,
+        channelId,
+        timestamp: Date.now(),
+        id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      };
+
+      if (options.queue) {
+        this.queue.push({ payload, options, priority: options.priority || 5 });
+        this._processQueue();
+        return payload.id;
+      }
+
+      return this._sendImmediate(channel, payload, options);
+    }
+
+    async _sendImmediate(channel, payload, options) {
+      const maxRetries = options.retry || 3;
+      let lastError;
+
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          await channel.handler(payload);
+          channel.stats.sent++;
+          console.log(`[Notification] ✅ Enviada via ${channel.id}`);
+          return { success: true, id: payload.id };
+        } catch (error) {
+          lastError = error;
+          console.warn(`[Notification] ⚠️ Tentativa ${attempt}/${maxRetries} falhou:`, error.message);
+          if (attempt < maxRetries) {
+            await this._sleep(1000 * attempt); // Backoff
+          }
+        }
+      }
+
+      channel.stats.failed++;
+      throw lastError;
+    }
+
+    async _processQueue() {
+      if (this.processing || this.queue.length === 0) return;
+      
+      this.processing = true;
+      
+      // Ordenar por prioridade
+      this.queue.sort((a, b) => a.priority - b.priority);
+
+      while (this.queue.length > 0) {
+        const { payload, options } = this.queue.shift();
+        const channel = this.channels.get(payload.channelId);
+        
+        if (channel) {
+          try {
+            await this._sendImmediate(channel, payload, options);
+          } catch (e) {
+            console.error(`[Notification] ❌ Falha definitiva:`, e);
+          }
+        }
+        
+        await this._sleep(100); // Rate limiting
+      }
+
+      this.processing = false;
+    }
+
+    _processTemplate(template, data) {
+      return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+        return data[key] !== undefined ? data[key] : match;
+      });
+    }
+
+    _sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // Canais pré-configurados
+    setupDefaultChannels() {
+      // Console
+      this.registerChannel('console', async (payload) => {
+        console.log(`[${payload.severity || 'INFO'}] ${payload.title}: ${payload.message}`);
+      });
+
+      // Chrome Notification
+      this.registerChannel('chrome', async (payload) => {
+        if (chrome.notifications) {
+          await chrome.notifications.create(payload.id, {
+            type: 'basic',
+            iconUrl: '/icons/icon-48.png',
+            title: payload.title || 'WhatsApp Automation',
+            message: payload.message,
+            priority: payload.priority || 0
+          });
+        }
+      });
+
+      // DOM Event
+      this.registerChannel('event', async (payload) => {
+        window.dispatchEvent(new CustomEvent('notification', { detail: payload }));
+      });
+
+      // Webhook
+      this.registerChannel('webhook', async (payload) => {
+        if (!payload.webhookUrl) throw new Error('webhookUrl não definida');
+        
+        const response = await fetch(payload.webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Webhook falhou: ${response.status}`);
+        }
+      });
+    }
+
+    getStats() {
+      const stats = {};
+      this.channels.forEach((channel, id) => {
+        stats[id] = channel.stats;
+      });
+      return stats;
+    }
+  }
+
+  // ============================================================
+  // CAMPAIGN SYSTEM - INTEGRAÇÃO COMPLETA
+  // Integra: Templates + Scheduler + Reports + Alerts + Notifications
+  // ============================================================
+
+  class CampaignSystem {
+    constructor() {
+      this.templateEngine = new TemplateEngine();
+      this.scheduler = new CampaignScheduler();
+      this.reporting = new ReportingSystem();
+      this.alerts = new AlertSystem();
+      this.notifications = new NotificationSystem();
+      this.isInitialized = false;
+    }
+
+    async initialize() {
+      if (this.isInitialized) return this;
+      
+      console.log('[CampaignSystem] 🚀 Inicializando...');
+      
+      // Inicializar componentes
+      await this.scheduler.initialize();
+      this.notifications.setupDefaultChannels();
+      
+      // Configurar regras de alerta padrão
+      this.alerts.addRule('high_failure_rate', {
+        metric: 'failureRate',
+        condition: 'gt',
+        threshold: 20,
+        severity: 'critical'
+      });
+      
+      this.alerts.addRule('slow_delivery', {
+        metric: 'deliveryTime',
+        condition: 'gt',
+        threshold: 10000,
+        severity: 'warning'
+      });
+
+      // Conectar alertas às notificações
+      this.alerts.subscribe(async (alert) => {
+        await this.notifications.send('chrome', {
+          title: `Alerta: ${alert.severity.toUpperCase()}`,
+          message: `${alert.metric}: ${alert.value} (limite: ${alert.threshold})`,
+          severity: alert.severity
+        });
+      });
+
+      // Registrar templates padrão
+      this._registerDefaultTemplates();
+      
+      this.isInitialized = true;
+      console.log('[CampaignSystem] ✅ Inicializado');
+      
+      return this;
+    }
+
+    _registerDefaultTemplates() {
+      this.templateEngine.register('welcome', 
+        'Olá {{nome}}! 👋 Bem-vindo(a)! {{#if empresa}}Somos da {{empresa}}.{{/if}}');
+      
+      this.templateEngine.register('followup',
+        'Oi {{nome}}, tudo bem? Vi que conversamos no dia {{date:DD/MM}}. Podemos continuar?');
+      
+      this.templateEngine.register('promo',
+        '🎉 {{upper:nome}}, temos uma oferta especial para você! {{mensagem}}');
+    }
+
+    // API Simplificada
+    async executeCampaign(config) {
+      const campaignId = config.id || `campaign_${Date.now()}`;
+      
+      // Processar mensagem com template
+      let message = config.message;
+      if (config.templateId) {
+        message = this.templateEngine.process(config.templateId, config.variables || {});
+      }
+
+      // Registrar início
+      this.reporting.recordMetric(campaignId, 'started', 1);
+
+      try {
+        // Executar via WhatsApp Automation existente
+        for (const contact of config.contacts) {
+          const personalizedMessage = this.templateEngine.process(message, {
+            nome: contact.name,
+            numero: contact.number,
+            ...config.variables
+          });
+
+          try {
+            if (window.wa && window.wa.enviar) {
+              await window.wa.enviar(contact.number, personalizedMessage);
+            }
+            this.reporting.recordMetric(campaignId, 'sent', 1);
+            this.reporting.recordMetric(campaignId, 'delivered', 1);
+          } catch (error) {
+            this.reporting.recordMetric(campaignId, 'failed', 1);
+            
+            // Avaliar alerta
+            const metrics = this.reporting.metrics.get(campaignId);
+            const failureRate = (metrics.failed / metrics.sent) * 100;
+            this.alerts.evaluate('failureRate', failureRate, { campaignId, contact });
+          }
+
+          // Delay entre mensagens
+          await this._sleep(config.delay || 3000);
+        }
+
+        // Completar
+        this.reporting.recordMetric(campaignId, 'completed', 1);
+        
+        // Gerar relatório
+        const report = this.reporting.generateReport(campaignId);
+        
+        // Notificar conclusão
+        await this.notifications.send('chrome', {
+          title: 'Campanha Concluída',
+          message: `${report.summary.delivered}/${report.summary.totalSent} mensagens entregues (${report.summary.successRate})`
+        });
+
+        return report;
+
+      } catch (error) {
+        console.error('[CampaignSystem] Erro:', error);
+        throw error;
+      }
+    }
+
+    // Agendar campanha
+    scheduleCampaign(config, scheduleTime) {
+      return this.scheduler.schedule(
+        config.id || `scheduled_${Date.now()}`,
+        config,
+        scheduleTime,
+        { retryOnFail: true, notifyOnComplete: true }
+      );
+    }
+
+    _sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+  }
+
+  // ============================================================
+  // INICIALIZAÇÃO E EXPOSIÇÃO GLOBAL
+  // ============================================================
+
+  window.initCampaignSystem = async () => {
+    if (window.campaignSystem) {
+      console.log('[CampaignSystem] Já inicializado');
+      return window.campaignSystem;
+    }
+
+    const system = new CampaignSystem();
+    await system.initialize();
+    
+    window.campaignSystem = system;
+    
+    // API Conveniente
+    window.wa = window.wa || {};
+    window.wa.campaigns = {
+      execute: (config) => system.executeCampaign(config),
+      schedule: (config, time) => system.scheduleCampaign(config, time),
+      cancel: (id) => system.scheduler.cancel(id),
+      list: () => system.scheduler.listScheduled(),
+      report: (id) => system.reporting.generateReport(id),
+      export: (id, format) => system.reporting.exportReport(id, format),
+      template: {
+        register: (name, content) => system.templateEngine.register(name, content),
+        process: (template, vars) => system.templateEngine.process(template, vars),
+        validate: (template) => system.templateEngine.validate(template)
+      },
+      alerts: {
+        add: (id, config) => system.alerts.addRule(id, config),
+        remove: (id) => system.alerts.removeRule(id),
+        active: () => system.alerts.getActiveAlerts(),
+        acknowledge: (id) => system.alerts.acknowledge(id)
+      },
+      notify: (channel, notification) => system.notifications.send(channel, notification)
+    };
+
+    console.log('[CampaignSystem] 🎉 API disponível em window.wa.campaigns');
+    return system;
+  };
+
+  // Auto-inicializar após 4 segundos
+  setTimeout(() => {
+    if (window.wa && window.wa.helper) {
+      window.initCampaignSystem();
+    }
+  }, 4000);
+
 })();
