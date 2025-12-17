@@ -4466,8 +4466,11 @@ ${transcript || '(não consegui ler mensagens)'}
     async typeText(element, text) {
       element.focus();
       
+      // Build text incrementally in memory, then update DOM
+      let currentText = '';
       for (const char of text) {
-        element.textContent += char;
+        currentText += char;
+        element.textContent = currentText;
         element.dispatchEvent(new InputEvent('input', { bubbles: true, data: char }));
         element.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: char }));
         element.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: char }));
@@ -4826,7 +4829,9 @@ ${transcript || '(não consegui ler mensagens)'}
     getMessageHash(el) {
       const text = el.textContent.trim();
       const classes = Array.from(el.classList).join('');
-      return `msg_${text.length}_${classes.length}_${Date.now()}`;
+      // Add random component to prevent collisions
+      const random = Math.random().toString(36).substring(2, 9);
+      return `msg_${text.length}_${classes.length}_${Date.now()}_${random}`;
     }
     
     triggerCallbacks(event, data) {
