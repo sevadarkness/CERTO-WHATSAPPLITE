@@ -374,11 +374,12 @@
       '[data-testid="media-viewer-modal"]',
       '[data-animate-modal-popup="true"]',
       '.media-canvas-renderer',
-      '._2Ts6i._2xAQV',
       // Seletores antigos como fallback
       'div[role="dialog"]',
       '[data-testid="media-viewer"]',
-      '[data-testid="popup"]'
+      '[data-testid="popup"]',
+      // Fragile minified class names (last resort)
+      '._2Ts6i._2xAQV'
     ]
   };
 
@@ -787,8 +788,8 @@
       '[data-testid="media-viewer-modal"]',
       '[data-animate-modal-popup="true"]',
       '.media-canvas-renderer',
-      '._2Ts6i._2xAQV',
-      'div[role="dialog"]'  // fallback
+      'div[role="dialog"]',  // fallback
+      '._2Ts6i._2xAQV'  // fragile minified class (last resort)
     ];
     
     let dlg = null;
@@ -1207,8 +1208,9 @@
     }
     
     debugLog('Abrindo chat via URL direta:', digits);
+    debugLog('⚠️ Página será recarregada para abrir o chat');
     
-    // Navegar para URL do WhatsApp
+    // Navegar para URL do WhatsApp (causa reload da página)
     const url = `https://web.whatsapp.com/send?phone=${digits}`;
     window.location.href = url;
     
