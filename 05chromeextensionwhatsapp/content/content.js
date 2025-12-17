@@ -250,9 +250,16 @@
       const text = applyVars(msg || '', e).trim();
 
       try {
-        debugLog('Opening chat...');
-        await openChatBySearch(phoneDigits);
-        await sleep(500);
+        // CRITICAL FIX 1: Open chat via URL direct (PRIMARY METHOD)
+        debugLog('Opening chat via URL direct...');
+        await openChatByUrlDirect(normalizedNumber);
+        
+        // CRITICAL FIX 1: Validate correct chat BEFORE sending
+        const isCorrectChat = await validateCorrectChatOpen(normalizedNumber);
+        if (!isCorrectChat) {
+          console.error(`[CAMPANHA] ❌ Chat errado para ${displayName}, pulando...`);
+          continue; // Skip to next contact
+        }
         
         const composer = findComposer();
         if (!composer) {
@@ -780,23 +787,20 @@
     return btn;
   }
 
-  // FIX 5: Envio de Imagem (DOM) - Melhorias
+  // CRITICAL FIX 3: Image sending (updated 2024/2025)
   async function attachMediaAndSend(mediaPayload, captionText) {
     if (!mediaPayload?.base64) throw new Error('Mídia não carregada.');
     
-    debugLog('Iniciando envio de mídia...');
+    debugLog('[MÍDIA] Iniciando envio de mídia...');
     
-    // 1. Encontrar botão de anexo com múltiplos seletores
-    // FIX 2: Updated selectors for WhatsApp Web 2024/2025
+    // 1. Find attach button with NEW selectors
     const attachSelectors = [
-      'button[aria-label="Anexar"]',           // NEW - Working selector 2024/2025
-      'span[data-icon="plus-rounded"]',        // NEW - Working selector 2024/2025
-      'footer button[aria-label*="Anexar"]',   // Fallback
-      'footer button[title*="Anexar"]',        // Fallback
-      'span[data-icon="plus"]',                // Legacy
-      'span[data-icon="attach-menu-plus"]',    // Legacy
-      'span[data-icon="clip"]',                // Legacy
-      '[data-testid="attach-menu-plus"]'       // Legacy
+      'button[aria-label="Anexar"]',           // NEW 2024/2025
+      'span[data-icon="plus-rounded"]',        // NEW 2024/2025
+      'span[data-icon="attach-menu-plus"]',
+      'span[data-icon="plus"]',
+      'span[data-icon="clip"]',
+      '[data-testid="attach-menu-plus"]',
     ];
     
     let attachBtn = null;
@@ -804,45 +808,42 @@
       const el = document.querySelector(sel);
       if (el) {
         attachBtn = el.closest('button') || el.closest('div[role="button"]') || el;
-        if (attachBtn) {
-          debugLog('Botão de anexo encontrado:', sel);
+        if (attachBtn && attachBtn.offsetWidth > 0) {
+          debugLog('[MÍDIA] Botão anexar encontrado:', sel);
           break;
         }
       }
     }
     
-    if (!attachBtn) throw new Error('Botão de anexo não encontrado.');
+    if (!attachBtn) throw new Error('Botão de anexo não encontrado');
 
+    // 2. Click attach button
     attachBtn.click();
-    await sleep(1000); // FIX 3: Increased from 800ms to 1000ms
+    await sleep(1000);
 
-    // Aguardar menu de anexo aparecer
-    await sleep(500);
-
-    // 2. Encontrar input de arquivo com retry logic
-    // FIX 3: Improved robustness with multiple retry attempts
+    // 3. Find file input with MORE attempts
+    let input = null;
     const inputSelectors = [
       'input[type="file"][accept*="image"]',
       'input[type="file"][accept*="video"]',
       'input[type="file"]'
     ];
     
-    let input = null;
-    for (let attempt = 0; attempt < 5; attempt++) {
+    for (let attempt = 0; attempt < 8; attempt++) {
       for (const sel of inputSelectors) {
         input = document.querySelector(sel);
         if (input && input.isConnected) {
-          debugLog('Input de arquivo encontrado:', sel, 'na tentativa', attempt + 1);
+          debugLog('[MÍDIA] Input encontrado na tentativa', attempt + 1);
           break;
         }
       }
       if (input) break;
-      await sleep(300);
+      await sleep(400);
     }
     
-    if (!input) throw new Error('Input de arquivo não encontrado.');
+    if (!input) throw new Error('Input de arquivo não encontrado');
 
-    // 3. Criar arquivo e disparar eventos
+    // 4. Create DataTransfer and set file
     const bytes = b64ToBytes(mediaPayload.base64);
     const mimeType = mediaPayload.type || 'image/jpeg';
     const fileName = mediaPayload.name || `image_${Date.now()}.jpg`;
@@ -850,64 +851,79 @@
     const blob = new Blob([bytes], { type: mimeType });
     const file = new File([blob], fileName, { type: mimeType, lastModified: Date.now() });
 
-    const dt = new DataTransfer();
-    dt.items.add(file);
-    input.files = dt.files;
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(file);
+    input.files = dataTransfer.files;
     
-    // Disparar múltiplos eventos para garantir detecção
+    // 5. Trigger events
     input.dispatchEvent(new Event('change', { bubbles: true }));
     input.dispatchEvent(new Event('input', { bubbles: true }));
     
-    debugLog('Arquivo anexado, aguardando preview...');
+    debugLog('[MÍDIA] Arquivo atribuído, aguardando preview...');
 
-    // 4. Aguardar preview com timeout maior
-    let sendBtn = null;
-    const maxAttempts = 60; // 18 segundos
+    // 6. Wait for preview to appear - MORE TIME
+    const mediaDialogSelectors = [
+      '[data-animate-modal-popup="true"]',     // NEW 2024/2025
+      '[data-testid="media-viewer-modal"]',
+      '.media-canvas-renderer',
+      '._2Ts6i._2xAQV'
+    ];
     
-    for (let i = 0; i < maxAttempts; i++) {
-      await sleep(300);
-      
-      // Múltiplos seletores para botão de envio na dialog
-      const sendSelectors = [
-        '[data-testid="send"]',
-        'span[data-icon="send"]',
-        'button[aria-label*="Enviar"]',
-        'div[role="button"][aria-label*="Enviar"]'
-      ];
-      
-      for (const sel of sendSelectors) {
-        const btn = document.querySelector(`div[role="dialog"] ${sel}, [data-testid="media-viewer"] ${sel}`);
-        if (btn) {
-          sendBtn = btn.closest('button') || btn.closest('div[role="button"]') || btn;
+    let previewFound = false;
+    for (let i = 0; i < 25; i++) {  // 25 attempts = ~5 seconds
+      await sleep(200);
+      for (const sel of mediaDialogSelectors) {
+        if (document.querySelector(sel)) {
+          previewFound = true;
+          debugLog('[MÍDIA] Preview encontrado:', sel);
           break;
         }
       }
-      
-      if (sendBtn) {
-        debugLog('Botão de envio encontrado após', i * 300, 'ms');
-        break;
+      if (previewFound) break;
+    }
+    
+    if (!previewFound) throw new Error('Preview da mídia não apareceu');
+
+    // 7. Add caption if provided
+    if (captionText) {
+      await sleep(500);
+      const captionInput = document.querySelector('[data-testid="media-caption-input"]') ||
+                           document.querySelector('div[contenteditable="true"][data-tab="10"]');
+      if (captionInput) {
+        captionInput.focus();
+        document.execCommand('insertText', false, captionText);
+        debugLog('[MÍDIA] Caption adicionada');
+      }
+    }
+
+    // 8. Find and click send button
+    await sleep(500);
+    
+    const sendSelectors = [
+      'span[data-icon="wds-ic-send-filled"]',  // NEW 2024/2025
+      '[data-testid="send"]',
+      'span[data-icon="send"]',
+      'div[role="button"][aria-label*="Enviar"]'
+    ];
+    
+    let sendBtn = null;
+    for (const sel of sendSelectors) {
+      const el = document.querySelector(sel);
+      if (el) {
+        sendBtn = el.closest('div[role="button"]') || el.closest('button') || el;
+        if (sendBtn && sendBtn.offsetWidth > 0) {
+          debugLog('[MÍDIA] Botão enviar encontrado:', sel);
+          break;
+        }
       }
     }
     
-    if (!sendBtn) throw new Error('Preview não apareceu ou botão enviar não encontrado.');
+    if (!sendBtn) throw new Error('Botão de enviar mídia não encontrado');
 
-    // 5. Adicionar legenda se houver
-    if (captionText?.trim()) {
-      const captionBox = document.querySelector('div[role="dialog"] [contenteditable="true"]');
-      if (captionBox) {
-        captionBox.focus();
-        document.execCommand('selectAll', false, null);
-        document.execCommand('insertText', false, captionText.trim());
-        captionBox.dispatchEvent(new InputEvent('input', { bubbles: true }));
-        await sleep(200);
-      }
-    }
-
-    // 6. Clicar enviar
     sendBtn.click();
-    await sleep(1500);
+    debugLog('[MÍDIA] ✅ Mídia enviada com sucesso!');
     
-    debugLog('Mídia enviada com sucesso!');
+    await sleep(2000);
     return true;
   }
 
@@ -1144,6 +1160,61 @@
     
     debugLog('❌ Chat não abriu ou não corresponde ao número correto');
     throw new Error('Chat não abriu (composer não encontrado ou chat incorreto).');
+  }
+
+  // -------------------------
+  // NEW CRITICAL FIX 1: Open chat via URL direct (PRIMARY METHOD)
+  // -------------------------
+  async function openChatByUrlDirect(phoneNumber) {
+    const digits = phoneNumber.replace(/\D/g, '');
+    
+    if (!digits || digits.length < 10) {
+      throw new Error('Número inválido para URL direta');
+    }
+    
+    debugLog('[CHAT] Abrindo via URL direta:', digits);
+    
+    // Navigate to WhatsApp URL
+    const url = `https://web.whatsapp.com/send?phone=${digits}`;
+    window.location.href = url;
+    
+    // Wait for page to load
+    await sleep(3000);
+    
+    // Check if chat opened (composer available)
+    for (let i = 0; i < 20; i++) {
+      await sleep(500);
+      const composer = findComposer();
+      if (composer) {
+        debugLog('[CHAT] ✅ Chat aberto via URL direta');
+        return true;
+      }
+    }
+    
+    throw new Error('Chat não abriu após navegação via URL');
+  }
+
+  // -------------------------
+  // NEW CRITICAL FIX 1: Validate correct chat BEFORE sending
+  // -------------------------
+  async function validateCorrectChatOpen(targetNumber) {
+    const chatTitle = getChatTitle();
+    if (!chatTitle) return false;
+    
+    const digitsInTitle = chatTitle.replace(/\D/g, '');
+    const targetDigits = targetNumber.replace(/\D/g, '');
+    
+    // Compare last 8 digits
+    const titleSuffix = digitsInTitle.slice(-8);
+    const targetSuffix = targetDigits.slice(-8);
+    
+    const isCorrect = digitsInTitle.includes(targetSuffix) || 
+                      targetDigits.includes(titleSuffix) ||
+                      titleSuffix === targetSuffix;
+    
+    debugLog('[VALIDAÇÃO] Chat:', chatTitle, '| Alvo:', targetNumber, '| Correto:', isCorrect);
+    
+    return isCorrect;
   }
 
   // -------------------------
@@ -5505,6 +5576,314 @@ wa.text.escutar((msg) => console.log(msg))
       this.knowledge.learnedPatterns.push({ triggers: Array.isArray(triggers) ? triggers : [triggers], response, confidence, occurrences: 0, createdAt: Date.now(), source: 'manual' });
     }
   }
+
+  // ============================================================
+  // ADVANCED CAMPAIGN SYSTEM - TemplateEngine
+  // ============================================================
+
+  class TemplateEngine {
+    constructor() {
+      this.templates = new Map();
+      this.functions = {
+        upper: (text) => text.toUpperCase(),
+        lower: (text) => text.toLowerCase(),
+        capitalize: (text) => text.charAt(0).toUpperCase() + text.slice(1).toLowerCase(),
+        date: (format) => this.formatDate(new Date(), format),
+        random: (min, max) => Math.floor(Math.random() * (parseInt(max) - parseInt(min) + 1)) + parseInt(min)
+      };
+    }
+
+    register(name, template, metadata = {}) {
+      this.templates.set(name, {
+        content: template,
+        metadata: { ...metadata, createdAt: Date.now(), usageCount: 0 }
+      });
+    }
+
+    process(templateNameOrContent, variables = {}) {
+      let content = this.templates.has(templateNameOrContent) 
+        ? this.templates.get(templateNameOrContent).content 
+        : templateNameOrContent;
+      
+      // Replace variables {{variable}}
+      content = content.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+        return variables[key] !== undefined ? variables[key] : match;
+      });
+      
+      // Process functions {{function:param}}
+      content = content.replace(/\{\{(\w+):([^}]+)\}\}/g, (match, func, params) => {
+        if (this.functions[func]) {
+          const args = params.split(',').map(p => p.trim());
+          return this.functions[func](...args);
+        }
+        return match;
+      });
+      
+      // Process conditionals {{#if}}...{{/if}}
+      content = content.replace(/\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (match, condition, inner) => {
+        return variables[condition] ? inner : '';
+      });
+      
+      return content;
+    }
+
+    validate(template) {
+      const errors = [];
+      const openBraces = (template.match(/\{\{/g) || []).length;
+      const closeBraces = (template.match(/\}\}/g) || []).length;
+      if (openBraces !== closeBraces) errors.push('Chaves não balanceadas');
+      
+      const ifCount = (template.match(/\{\{#if/g) || []).length;
+      const endIfCount = (template.match(/\{\{\/if\}\}/g) || []).length;
+      if (ifCount !== endIfCount) errors.push('Condicionais não balanceadas');
+      
+      return { valid: errors.length === 0, errors };
+    }
+
+    formatDate(date, format) {
+      const pad = (n) => n.toString().padStart(2, '0');
+      return format
+        .replace('YYYY', date.getFullYear())
+        .replace('MM', pad(date.getMonth() + 1))
+        .replace('DD', pad(date.getDate()))
+        .replace('HH', pad(date.getHours()))
+        .replace('mm', pad(date.getMinutes()));
+    }
+  }
+
+  // ============================================================
+  // ADVANCED CAMPAIGN SYSTEM - CampaignScheduler
+  // ============================================================
+
+  class CampaignScheduler {
+    constructor() {
+      this.scheduledCampaigns = new Map();
+      this.executionHistory = [];
+      this.timers = new Map();
+    }
+
+    async initialize() {
+      await this.loadFromStorage();
+      this.resumeScheduledCampaigns();
+      console.log('[Scheduler] ✅ Inicializado com', this.scheduledCampaigns.size, 'campanhas');
+    }
+
+    schedule(campaignId, campaignData, scheduleTime, options = {}) {
+      const scheduledAt = new Date(scheduleTime).getTime();
+      const now = Date.now();
+      
+      if (scheduledAt <= now) throw new Error('Data deve ser no futuro');
+
+      const scheduled = {
+        id: campaignId,
+        data: campaignData,
+        scheduledAt,
+        createdAt: now,
+        status: 'scheduled',
+        options: { retryOnFail: options.retryOnFail || false, maxRetries: options.maxRetries || 3, ...options }
+      };
+
+      this.scheduledCampaigns.set(campaignId, scheduled);
+      this._setTimer(campaignId, scheduledAt - now);
+      this.saveToStorage();
+      
+      return scheduled;
+    }
+
+    cancel(campaignId) {
+      if (this.timers.has(campaignId)) {
+        clearTimeout(this.timers.get(campaignId));
+        this.timers.delete(campaignId);
+      }
+      const campaign = this.scheduledCampaigns.get(campaignId);
+      if (campaign) {
+        campaign.status = 'cancelled';
+        this.scheduledCampaigns.delete(campaignId);
+        this.saveToStorage();
+        return true;
+      }
+      return false;
+    }
+
+    listScheduled() {
+      return Array.from(this.scheduledCampaigns.values())
+        .filter(c => c.status === 'scheduled')
+        .sort((a, b) => a.scheduledAt - b.scheduledAt);
+    }
+
+    _setTimer(campaignId, delay) {
+      const timer = setTimeout(() => this._executeCampaign(campaignId), delay);
+      this.timers.set(campaignId, timer);
+    }
+
+    async _executeCampaign(campaignId) {
+      const campaign = this.scheduledCampaigns.get(campaignId);
+      if (!campaign || campaign.status !== 'scheduled') return;
+      
+      campaign.status = 'executing';
+      try {
+        // Execute via campaign system
+        if (window.wa && window.wa.campaigns) {
+          await window.wa.campaigns.execute(campaign.data);
+        }
+        campaign.status = 'completed';
+        window.dispatchEvent(new CustomEvent('campaign:completed', { detail: campaign }));
+      } catch (error) {
+        campaign.status = 'failed';
+        campaign.error = error.message;
+      }
+      
+      this.executionHistory.push({ ...campaign });
+      this.scheduledCampaigns.delete(campaignId);
+      this.saveToStorage();
+    }
+
+    async loadFromStorage() {
+      try {
+        const data = await chrome.storage.local.get('campaign_scheduler');
+        if (data.campaign_scheduler) {
+          data.campaign_scheduler.scheduled?.forEach(c => this.scheduledCampaigns.set(c.id, c));
+          this.executionHistory = data.campaign_scheduler.history || [];
+        }
+      } catch (e) { console.warn('[Scheduler] Erro ao carregar:', e); }
+    }
+
+    async saveToStorage() {
+      try {
+        await chrome.storage.local.set({
+          campaign_scheduler: {
+            scheduled: Array.from(this.scheduledCampaigns.values()),
+            history: this.executionHistory.slice(-100)
+          }
+        });
+      } catch (e) { console.warn('[Scheduler] Erro ao salvar:', e); }
+    }
+
+    resumeScheduledCampaigns() {
+      const now = Date.now();
+      this.scheduledCampaigns.forEach((campaign, id) => {
+        if (campaign.status === 'scheduled') {
+          const delay = campaign.scheduledAt - now;
+          if (delay > 0) this._setTimer(id, delay);
+          else this._executeCampaign(id);
+        }
+      });
+    }
+  }
+
+  // ============================================================
+  // ADVANCED CAMPAIGN SYSTEM - CampaignSystem (Integration)
+  // ============================================================
+
+  class CampaignSystem {
+    constructor() {
+      this.templateEngine = new TemplateEngine();
+      this.scheduler = new CampaignScheduler();
+      this.isInitialized = false;
+    }
+
+    async initialize() {
+      if (this.isInitialized) return this;
+      
+      console.log('[CampaignSystem] 🚀 Inicializando...');
+      await this.scheduler.initialize();
+      this._registerDefaultTemplates();
+      this.isInitialized = true;
+      console.log('[CampaignSystem] ✅ Inicializado');
+      return this;
+    }
+
+    _registerDefaultTemplates() {
+      this.templateEngine.register('welcome', 'Olá {{nome}}! 👋 Bem-vindo(a)!');
+      this.templateEngine.register('followup', 'Oi {{nome}}, tudo bem? Podemos continuar nossa conversa?');
+      this.templateEngine.register('promo', '🎉 {{upper:nome}}, temos uma oferta especial para você! {{mensagem}}');
+    }
+
+    async execute(config) {
+      const campaignId = config.id || `campaign_${Date.now()}`;
+      
+      let message = config.message;
+      if (config.templateId) {
+        message = this.templateEngine.process(config.templateId, config.variables || {});
+      }
+
+      const results = { success: 0, failed: 0, errors: [] };
+
+      for (const contact of config.contacts) {
+        const personalizedMessage = this.templateEngine.process(message, {
+          nome: contact.name,
+          numero: contact.number,
+          ...config.variables
+        });
+
+        try {
+          // 1. Open chat via URL DIRECT
+          await openChatByUrlDirect(contact.number);
+          
+          // 2. VALIDATE correct chat
+          const isCorrect = await validateCorrectChatOpen(contact.number);
+          if (!isCorrect) {
+            results.failed++;
+            results.errors.push(`Chat errado para ${contact.number}`);
+            continue;
+          }
+          
+          // 3. Send message
+          await insertIntoComposer(personalizedMessage);
+          await clickSend();
+          
+          results.success++;
+          
+        } catch (error) {
+          results.failed++;
+          results.errors.push(`${contact.number}: ${error.message}`);
+        }
+
+        // 4. Delay between messages
+        await sleep(config.delay || 3000 + Math.random() * 2000);
+      }
+
+      console.log(`[CampaignSystem] ✅ Concluída: ${results.success} enviadas, ${results.failed} falhas`);
+      return results;
+    }
+
+    scheduleCampaign(config, scheduleTime) {
+      return this.scheduler.schedule(config.id || `scheduled_${Date.now()}`, config, scheduleTime);
+    }
+  }
+
+  // Initialize Campaign System
+  window.initCampaignSystem = async () => {
+    if (window.campaignSystem) return window.campaignSystem;
+    
+    const system = new CampaignSystem();
+    await system.initialize();
+    window.campaignSystem = system;
+    
+    // API in window.wa.campaigns
+    window.wa = window.wa || {};
+    window.wa.campaigns = {
+      execute: (config) => system.execute(config),
+      schedule: (config, time) => system.scheduleCampaign(config, time),
+      cancel: (id) => system.scheduler.cancel(id),
+      list: () => system.scheduler.listScheduled(),
+      template: {
+        register: (name, content) => system.templateEngine.register(name, content),
+        process: (template, vars) => system.templateEngine.process(template, vars),
+        validate: (template) => system.templateEngine.validate(template)
+      }
+    };
+    
+    console.log('[CampaignSystem] 🎉 API disponível em window.wa.campaigns');
+    return system;
+  };
+
+  // Auto-initialize
+  setTimeout(() => {
+    if (window.wa && window.wa.helper) {
+      window.initCampaignSystem();
+    }
+  }, 4000);
 
   // ============================================================
   // INICIALIZAÇÃO DO SMARTBOT
