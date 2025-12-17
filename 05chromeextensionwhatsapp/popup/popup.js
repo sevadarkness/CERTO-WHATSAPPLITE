@@ -499,7 +499,8 @@ async function sendToTeam() {
   try {
     // FIX 2: Usar Promise wrapper para garantir resposta
     const response = await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
+      let timeout = setTimeout(() => {
+        timeout = null;
         reject(new Error(`Timeout: WhatsApp Web não respondeu em ${TEAM_SEND_TIMEOUT_MS/1000}s`));
       }, TEAM_SEND_TIMEOUT_MS);
       
@@ -511,7 +512,10 @@ async function sendToTeam() {
           senderName
         }
       }, (resp) => {
-        clearTimeout(timeout);
+        if (timeout) {
+          clearTimeout(timeout);
+          timeout = null;
+        }
         if (chrome.runtime.lastError) {
           reject(new Error(chrome.runtime.lastError.message));
         } else {

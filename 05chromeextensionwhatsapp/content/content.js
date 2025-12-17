@@ -915,16 +915,20 @@
   // -------------------------
   // Phone Normalization (FIX 3)
   // -------------------------
+  // NOTE: This function assumes Brazilian phone format (+55) as default
+  // For international use, this should be made configurable
   function normalizePhoneNumber(phone) {
     // Remover tudo exceto dígitos e +
     let digits = String(phone || '').replace(/[^\d+]/g, '');
     
     // Se não tem +, assumir Brasil (+55)
+    // LIMITATION: Hardcoded to Brazilian format for now
     if (!digits.startsWith('+')) {
       // Se começa com 55, adicionar +
       if (digits.startsWith('55') && digits.length >= 12) {
         digits = '+' + digits;
       } else {
+        // Default: assumir que é número brasileiro sem código do país
         digits = '+55' + digits;
       }
     }
@@ -4028,14 +4032,15 @@ ${transcript || '(não consegui ler mensagens)'}
     if (box) box.style.display = 'none';
   }
 
-  let quickRepliesDebounceTimer = null; // Declare debounce timer
-
   async function initQuickRepliesListener() {
     // Prevent multiple listeners
     if (quickRepliesListener) return;
 
     // Create suggestion UI
     createQuickReplySuggestionUI();
+    
+    // Declare debounce timer in closure
+    let quickRepliesDebounceTimer = null;
 
     // Input listener for real-time detection
     const inputListener = async () => {
