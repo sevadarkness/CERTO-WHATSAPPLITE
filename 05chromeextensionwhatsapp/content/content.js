@@ -760,54 +760,91 @@
   }
 
   async function attachMediaAndSend(mediaPayload, captionText) {
+    debugLog('attachMediaAndSend: iniciando envio de mídia');
+    
     if (!mediaPayload?.base64) throw new Error('Mídia não carregada.');
+    
     const attachBtn = findAttachButton();
-    if (!attachBtn) throw new Error('Não encontrei o botão de anexo (📎).');
-
+    if (!attachBtn) {
+      debugLog('❌ Botão de anexo não encontrado');
+      throw new Error('Não encontrei o botão de anexo (📎).');
+    }
+    
+    debugLog('✓ Botão de anexo encontrado, clicando...');
     attachBtn.click();
-    await sleep(450);
+    await sleep(600); // Increased wait time for attach menu to open
 
     const input = findBestFileInput();
-    if (!input) throw new Error('Não encontrei o input de arquivo do WhatsApp.');
-
+    if (!input) {
+      debugLog('❌ Input de arquivo não encontrado após clicar anexo');
+      throw new Error('Não encontrei o input de arquivo do WhatsApp.');
+    }
+    
+    debugLog('✓ Input de arquivo encontrado:', input.accept);
+    
     const bytes = b64ToBytes(mediaPayload.base64);
     const blob = new Blob([bytes], { type: mediaPayload.type || 'image/*' });
-    const file = new File([blob], mediaPayload.name || 'image', { type: blob.type });
+    const file = new File([blob], mediaPayload.name || 'image.jpg', { type: blob.type });
+    
+    debugLog('✓ Arquivo criado:', file.name, file.type, file.size, 'bytes');
 
     const dt = new DataTransfer();
     dt.items.add(file);
     input.files = dt.files;
+    
+    // Dispatch multiple events to ensure WhatsApp recognizes the file
     input.dispatchEvent(new Event('change', { bubbles: true }));
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    
+    debugLog('✓ Arquivo anexado, aguardando preview...');
 
-    // Wait preview/dialog
+    // Wait for preview/dialog with increased attempts and better logging
     let sendBtn = null;
-    for (let i = 0; i < 40; i++) {
-      await sleep(250);
+    for (let i = 0; i < 50; i++) {
+      await sleep(300);
       sendBtn = findMediaSendButton();
-      if (sendBtn) break;
+      if (sendBtn) {
+        debugLog(`✓ Botão de enviar mídia encontrado (tentativa ${i+1})`);
+        break;
+      }
+      if (i % 5 === 0) {
+        debugLog(`  Aguardando preview... (tentativa ${i+1}/50)`);
+      }
     }
-    if (!sendBtn) throw new Error('Preview de mídia não apareceu (botão enviar não encontrado).');
+    
+    if (!sendBtn) {
+      debugLog('❌ Preview de mídia não apareceu após 15 segundos');
+      throw new Error('Preview de mídia não apareceu (botão enviar não encontrado).');
+    }
 
     // Caption
     const cap = safeText(captionText).trim();
     if (cap) {
+      debugLog('Adicionando legenda:', cap.slice(0, 50) + '...');
       const box = findMediaCaptionBox();
       if (box) {
         box.focus();
+        await sleep(100);
         try {
           document.execCommand('selectAll', false, null);
           document.execCommand('insertText', false, cap);
           box.dispatchEvent(new InputEvent('input', { bubbles: true }));
+          debugLog('✓ Legenda inserida');
         } catch (_) {
           box.textContent = cap;
           box.dispatchEvent(new InputEvent('input', { bubbles: true }));
+          debugLog('✓ Legenda inserida (fallback)');
         }
+      } else {
+        debugLog('⚠️ Caixa de legenda não encontrada');
       }
     }
 
-    await sleep(120);
+    await sleep(200);
+    debugLog('Clicando botão enviar mídia...');
     sendBtn.click();
-    await sleep(900);
+    await sleep(1200); // Increased wait time for media to be sent
+    debugLog('✅ Mídia enviada com sucesso');
     return true;
   }
 
@@ -1512,13 +1549,15 @@ ${transcript || '(não consegui ler mensagens)'}
         height: 18px;
         padding: 0 6px;
         border-radius: 999px;
-        background: rgba(255,255,255,.92);
-        color: #0b1020;
+        background: rgba(139,92,246,.92);
+        color: rgba(255,255,255,.98);
         font-size: 11px;
+        font-weight: 600;
         display:none;
         align-items:center;
         justify-content:center;
-        border: 1px solid rgba(0,0,0,.06);
+        border: 1px solid rgba(255,255,255,.18);
+        box-shadow: 0 2px 8px rgba(0,0,0,.25);
       }
       .badge.on{ display:flex; }
 
@@ -3886,27 +3925,21 @@ ${transcript || '(não consegui ler mensagens)'}
 
           debugLog('Quick reply matched:', trigger, '→', match.response.slice(0, 50));
 
-          // Clear composer properly using same methods as insertIntoComposer
-          composer.focus();
-          try {
-            document.execCommand('selectAll', false, null);
-            document.execCommand('delete', false, null);
-            composer.dispatchEvent(new InputEvent('input', { bubbles: true }));
-          } catch (e) {
-            // Fallback to direct manipulation if execCommand fails
-            composer.textContent = '';
-            composer.dispatchEvent(new InputEvent('input', { bubbles: true }));
-          }
-          await sleep(100);
-
-          // Insert quick reply response
-          await insertIntoComposer(match.response, false, false);
-          await sleep(200);
-
-          // Optional: auto-send (can be enabled with a setting later)
-          // await clickSend(false);
+          // Clear composer and insert quick reply response
+          await sleep(50);
           
-          debugLog('✅ Quick reply inserted successfully');
+          // Use insertIntoComposer which handles all the complexity
+          try {
+            await insertIntoComposer(match.response, false, false);
+            debugLog('✅ Quick reply inserted successfully');
+            
+            // Optional: Focus composer so user can edit or send
+            await sleep(100);
+            composer.focus();
+          } catch (err) {
+            debugLog('❌ Quick reply insertion failed:', err);
+            console.error('[WHL] Quick reply error:', err);
+          }
         }
       } catch (e) {
         debugLog('Quick reply error:', e);
