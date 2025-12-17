@@ -36,7 +36,7 @@ export class QueueManager {
     }
 
     const item = {
-      id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
       task,
       priority: options.priority || 5,
       handler: options.handler,

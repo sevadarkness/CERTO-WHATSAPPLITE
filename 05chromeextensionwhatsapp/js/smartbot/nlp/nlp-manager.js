@@ -210,7 +210,7 @@ export class NlpManager {
       if (entity.type === 'regex') {
         for (const pattern of entity.patterns) {
           const regex = new RegExp(pattern, 'gi');
-          const matches = text.matchAll(regex);
+          const matches = Array.from(text.matchAll(regex));
           
           for (const match of matches) {
             found.push({

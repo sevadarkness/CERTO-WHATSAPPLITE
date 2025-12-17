@@ -111,6 +111,8 @@ export class EventManager {
           this.off(event, listener.callback);
         }
       } catch (error) {
+        // Use console.error as fallback since we may not have LogManager reference
+        // In production, this should be replaced with proper logging
         console.error(`[EventManager] Error in listener for "${event}":`, error);
       }
     }

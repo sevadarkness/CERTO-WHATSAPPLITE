@@ -204,9 +204,10 @@ export class WebhookManager {
     );
 
     const signature = await crypto.subtle.sign('HMAC', key, data);
-    return Array.from(new Uint8Array(signature))
+    const hexSignature = Array.from(new Uint8Array(signature))
       .map(b => b.toString(16).padStart(2, '0'))
       .join('');
+    return `sha256=${hexSignature}`;
   }
 
   /**

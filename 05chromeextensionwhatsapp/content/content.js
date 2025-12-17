@@ -6941,11 +6941,18 @@ await wa.campaigns.notify('chrome', {
         return window.smartbotCore;
       }
 
-      // Como ES6 modules não são suportados diretamente em content scripts,
-      // os módulos do SmartBot devem ser carregados via import() dinâmico
-      // ou incluídos como scripts separados no manifest.json
+      // NOTE: ES6 modules in content scripts require special handling
+      // The SmartBot modules are available at js/smartbot/ and can be:
+      // 1. Bundled into a single file using a build tool (webpack/rollup)
+      // 2. Loaded via dynamic import() if supported
+      // 3. Included in manifest.json as separate scripts
+      // 
+      // For now, we create a basic stub API that can be enhanced by:
+      // - Loading modules via background script
+      // - Using a bundler in the build process
+      // - Dynamically importing when needed
       
-      // Por enquanto, criar uma instância básica que será expandida
+      // Create SmartBot stub API (to be enhanced with actual modules)
       window.smartbotCore = {
         version: '1.0.0',
         initialized: true,

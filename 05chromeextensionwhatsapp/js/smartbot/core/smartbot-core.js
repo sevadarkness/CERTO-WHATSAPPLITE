@@ -463,7 +463,7 @@ export class SmartBotCore {
 
     // Salvar estado
     await this.config.persist();
-    await this.learning._persist();
+    // Note: learning system persists automatically on updates
 
     this.log.info('SmartBot shutdown complete');
     this.events.emit('smartbot:shutdown', { timestamp: Date.now() });
