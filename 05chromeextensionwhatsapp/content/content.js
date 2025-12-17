@@ -5085,4 +5085,479 @@ wa.text.escutar((msg) => console.log(msg))
 🚀 PRONTO PARA USO!
 `);
 
+  // ============================================================
+  // SMARTBOT IA - SISTEMA INTELIGENTE DE ATENDIMENTO
+  // Integra: Sentimento + Intenção + Aprendizado + Auto-resposta
+  // ============================================================
+
+  class SmartBotIA {
+    constructor(waHelper, waTextMonitor) {
+      this.wa = waHelper;
+      this.textMonitor = waTextMonitor;
+      this.isActive = false;
+      this.config = {
+        autoResponseEnabled: false,
+        confidenceThreshold: 70,
+        learningEnabled: true,
+        sentimentAdjustment: true,
+        intentPrioritization: true,
+        humanHoursOnly: false,
+        maxAutoResponsesPerHour: 30,
+        responseDelay: { min: 1500, max: 4000 }
+      };
+      
+      this.knowledge = {
+        intents: {},
+        sentimentResponses: {},
+        learnedPatterns: [],
+        conversationHistory: new Map(),
+        feedbackData: { positive: 0, negative: 0, corrections: [] }
+      };
+      
+      this.metrics = {
+        totalMessages: 0,
+        autoResponses: 0,
+        assistedResponses: 0,
+        avgConfidence: 0,
+        avgSentiment: 0,
+        intentDistribution: {},
+        responseTime: []
+      };
+      
+      this.messageQueue = [];
+      this.unsubscribers = [];
+    }
+
+    async initialize() {
+      console.log('[SmartBot] 🚀 Inicializando...');
+      await this.loadKnowledge();
+      this.setupIntentResponses();
+      this.setupSentimentAdjustments();
+      console.log('[SmartBot] ✅ Inicializado');
+      return this;
+    }
+    
+    setupIntentResponses() {
+      this.knowledge.intents = {
+        greeting: {
+          responses: ['Olá! 👋 Como posso ajudar você hoje?', 'Oi! Tudo bem? Em que posso ser útil?', 'Olá! Seja bem-vindo(a)! 😊'],
+          confidence: 95, autoSend: true, priority: 'high'
+        },
+        farewell: {
+          responses: ['Até logo! Foi um prazer ajudar! 😊', 'Tchau! Qualquer dúvida, estou por aqui!', 'Até mais! Tenha um ótimo dia! 🙌'],
+          confidence: 90, autoSend: true, priority: 'medium'
+        },
+        thanks: {
+          responses: ['Por nada! Fico feliz em ajudar! 😊', 'Disponha! Qualquer coisa, é só chamar!', 'Imagina! Foi um prazer! 🙌'],
+          confidence: 90, autoSend: true, priority: 'medium'
+        },
+        question: { responses: [], confidence: 60, autoSend: false, priority: 'high', requiresAI: true },
+        request: { responses: [], confidence: 50, autoSend: false, priority: 'high', requiresAI: true },
+        confirmation: {
+          responses: ['Perfeito! ✅ Vou processar isso agora.', 'Entendido! Já estou providenciando.', 'Certo! Confirmado! 👍'],
+          confidence: 80, autoSend: false, priority: 'medium'
+        },
+        complaint: { responses: [], confidence: 30, autoSend: false, priority: 'urgent', requiresHuman: true, escalate: true },
+        other: { responses: [], confidence: 40, autoSend: false, priority: 'low', requiresAI: true }
+      };
+    }
+    
+    setupSentimentAdjustments() {
+      this.knowledge.sentimentResponses = {
+        positive: { prefix: ['Que ótimo! ', 'Fico feliz! ', 'Excelente! '], suffix: [' 😊', ' 🎉', ' ✨'], toneBoost: 1.2, emojiFrequency: 'high' },
+        negative: { prefix: ['Entendo sua frustração. ', 'Sinto muito por isso. ', 'Compreendo. '], suffix: [' Vou resolver isso para você.', ' Estou aqui para ajudar.', ''], toneBoost: 0.8, emojiFrequency: 'low', escalateProbability: 0.3 },
+        neutral: { prefix: ['', '', ''], suffix: ['', ' 👍', ''], toneBoost: 1.0, emojiFrequency: 'medium' }
+      };
+    }
+
+    start(options = {}) {
+      if (this.isActive) { console.log('[SmartBot] ⚠️ Já está ativo'); return; }
+      this.config = { ...this.config, ...options };
+      console.log('[SmartBot] 🟢 Ativando...');
+      
+      this.textMonitor.start({ interval: 800, detectTyping: true, debug: false });
+      
+      const unsubMessage = this.textMonitor.on('onNewMessage', (msg) => this.processIncomingMessage(msg));
+      this.unsubscribers.push(unsubMessage);
+      
+      const unsubChat = this.textMonitor.on('onNewChat', (data) => this.handleChatChange(data));
+      this.unsubscribers.push(unsubChat);
+      
+      const unsubTyping = this.textMonitor.on('onTyping', (data) => this.handleTypingIndicator(data));
+      this.unsubscribers.push(unsubTyping);
+      
+      this.isActive = true;
+      console.log('[SmartBot] ✅ Ativo e monitorando!');
+      return this;
+    }
+    
+    stop() {
+      if (!this.isActive) return;
+      console.log('[SmartBot] 🔴 Desativando...');
+      this.unsubscribers.forEach(unsub => unsub && unsub());
+      this.unsubscribers = [];
+      this.textMonitor.stop();
+      this.saveKnowledge();
+      this.isActive = false;
+      console.log('[SmartBot] ✅ Desativado');
+    }
+
+    async processIncomingMessage(message) {
+      if (message.isOutgoing) return;
+      const startTime = Date.now();
+      this.metrics.totalMessages++;
+      console.log('[SmartBot] 📨 Nova mensagem:', message.text?.slice(0, 50));
+      
+      try {
+        const analysis = this.analyzeMessage(message);
+        console.log('[SmartBot] 📊 Análise:', { intent: analysis.intent.primaryIntent, sentiment: analysis.sentiment.sentiment, confidence: analysis.confidence });
+        
+        this.updateConversationHistory(message.chatId, message, analysis);
+        this.updateMetrics(analysis);
+        
+        const decision = await this.decideAction(message, analysis);
+        console.log('[SmartBot] 🎯 Decisão:', decision.action);
+        
+        await this.executeAction(decision, message, analysis);
+        this.metrics.responseTime.push(Date.now() - startTime);
+      } catch (error) {
+        console.error('[SmartBot] ❌ Erro:', error);
+      }
+    }
+    
+    analyzeMessage(message) {
+      const text = message.text || '';
+      const sentiment = this.textMonitor.analyzeSentiment(text);
+      const intent = this.textMonitor.detectIntent(text);
+      const patterns = this.detectPatterns(text);
+      const urgency = this.analyzeUrgency(text, sentiment, intent);
+      const confidence = this.calculateConfidence(intent, sentiment, message);
+      const learnedMatch = this.findLearnedPattern(text);
+      return { sentiment, intent, patterns, urgency, confidence, learnedMatch, timestamp: Date.now() };
+    }
+    
+    detectPatterns(text) {
+      const results = { hasPhone: false, hasEmail: false, hasURL: false, hasMoney: false, entities: [] };
+      const patterns = {
+        phone: /(\+?\d{1,3}[\s-]?)?\(?\d{2,3}\)?[\s-]?\d{3,5}[\s-]?\d{4}/g,
+        email: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
+        url: /(https?:\/\/[^\s]+)|www\.[^\s]+/g,
+        money: /R\$\s?\d+([.,]\d+)?|\$\s?\d+([.,]\d+)?/g
+      };
+      for (const [type, regex] of Object.entries(patterns)) {
+        const matches = text.match(regex);
+        if (matches && matches.length > 0) {
+          results[`has${type.charAt(0).toUpperCase() + type.slice(1)}`] = true;
+          matches.forEach(match => results.entities.push({ type, value: match }));
+        }
+      }
+      return results;
+    }
+    
+    analyzeUrgency(text, sentiment, intent) {
+      const urgentWords = ['urgente', 'urgência', 'agora', 'imediato', 'rápido', 'emergência', 'crítico', 'problema grave'];
+      const lowerText = text.toLowerCase();
+      let score = 0;
+      urgentWords.forEach(word => { if (lowerText.includes(word)) score += 20; });
+      if (sentiment.sentiment === 'negative') score += 15;
+      if (intent.primaryIntent === 'complaint') score += 30;
+      if ((text.match(/\?/g) || []).length > 1) score += 10;
+      return { score: Math.min(100, score), level: score >= 50 ? 'high' : score >= 25 ? 'medium' : 'low' };
+    }
+    
+    calculateConfidence(intent, sentiment, message) {
+      let confidence = 50;
+      const intentConfig = this.knowledge.intents[intent.primaryIntent];
+      if (intentConfig) confidence = intentConfig.confidence;
+      if (sentiment.sentiment === 'positive') confidence += 10;
+      if (sentiment.sentiment === 'negative') confidence -= 20;
+      const textLength = (message.text || '').length;
+      if (textLength < 20) confidence += 15;
+      if (textLength > 200) confidence -= 15;
+      const history = this.knowledge.conversationHistory.get(message.chatId);
+      if (history && history.length > 3) confidence += 10;
+      const learnedMatch = this.findLearnedPattern(message.text);
+      if (learnedMatch && learnedMatch.confidence > 80) confidence = Math.max(confidence, learnedMatch.confidence);
+      return Math.min(100, Math.max(0, confidence));
+    }
+    
+    findLearnedPattern(text) {
+      if (!text) return null;
+      const lowerText = text.toLowerCase();
+      for (const pattern of this.knowledge.learnedPatterns) {
+        if (pattern.triggers.some(t => lowerText.includes(t.toLowerCase()))) {
+          return { pattern, confidence: pattern.confidence || 85, response: pattern.response };
+        }
+      }
+      return null;
+    }
+
+    async decideAction(message, analysis) {
+      const { intent, sentiment, confidence, urgency, learnedMatch } = analysis;
+      if (this.config.humanHoursOnly && !this.isBusinessHours()) return { action: 'queue', reason: 'Fora do horário comercial' };
+      if (!this.checkRateLimit()) return { action: 'queue', reason: 'Rate limit atingido' };
+      if (urgency.level === 'high' && sentiment.sentiment === 'negative') return { action: 'escalate', reason: 'Urgência alta com sentimento negativo', priority: 'urgent' };
+      if (learnedMatch && learnedMatch.confidence >= this.config.confidenceThreshold) return { action: 'auto_respond', response: learnedMatch.response, confidence: learnedMatch.confidence, source: 'learned_pattern' };
+      
+      const intentConfig = this.knowledge.intents[intent.primaryIntent];
+      if (intentConfig && intentConfig.autoSend && confidence >= this.config.confidenceThreshold && intentConfig.responses.length > 0) {
+        const response = this.selectAndAdjustResponse(intentConfig.responses, sentiment);
+        return { action: 'auto_respond', response, confidence, source: 'intent_match', intent: intent.primaryIntent };
+      }
+      if (intentConfig?.requiresAI) return { action: 'ai_generate', context: { intent: intent.primaryIntent, sentiment: sentiment.sentiment, history: this.getConversationContext(message.chatId) } };
+      if (intentConfig?.requiresHuman || intentConfig?.escalate) return { action: 'escalate', reason: 'Requer intervenção humana', priority: intentConfig.priority };
+      return { action: 'suggest', reason: 'Confiança insuficiente', confidence };
+    }
+    
+    async executeAction(decision, message, analysis) {
+      switch (decision.action) {
+        case 'auto_respond': await this.sendAutoResponse(decision, message, analysis); break;
+        case 'ai_generate': await this.generateAIResponse(decision, message, analysis); break;
+        case 'suggest': this.suggestResponse(decision, message, analysis); break;
+        case 'escalate': this.escalateToHuman(decision, message, analysis); break;
+        case 'queue': this.queueMessage(decision, message, analysis); break;
+      }
+    }
+    
+    async sendAutoResponse(decision, message, analysis) {
+      console.log('[SmartBot] 🤖 Enviando resposta automática...');
+      const delay = this.config.responseDelay.min + Math.random() * (this.config.responseDelay.max - this.config.responseDelay.min);
+      await this.sleep(delay);
+      try {
+        const success = await this.wa.sendTextMessage(decision.response);
+        if (success) {
+          this.metrics.autoResponses++;
+          this.recordInteraction(message, decision.response, 'auto', analysis);
+          console.log('[SmartBot] ✅ Resposta enviada');
+        }
+      } catch (error) {
+        console.error('[SmartBot] ❌ Erro ao enviar:', error);
+      }
+    }
+    
+    async generateAIResponse(decision, message, analysis) {
+      console.log('[SmartBot] 🧠 Gerando resposta via IA...');
+      try {
+        const context = { message: message.text, intent: analysis.intent.primaryIntent, sentiment: analysis.sentiment.sentiment, conversationHistory: decision.context.history };
+        const aiResponse = await this.callExistingAI(context);
+        if (aiResponse) {
+          const adjustedResponse = this.adjustResponseBySentiment(aiResponse, analysis.sentiment.sentiment);
+          if (this.config.autoResponseEnabled && analysis.confidence >= 70) {
+            await this.sendAutoResponse({ ...decision, response: adjustedResponse }, message, analysis);
+          } else {
+            this.suggestResponse({ ...decision, response: adjustedResponse }, message, analysis);
+          }
+        }
+      } catch (error) {
+        console.error('[SmartBot] ❌ Erro na IA:', error);
+        this.suggestResponse(decision, message, analysis);
+      }
+    }
+    
+    async callExistingAI(context) {
+      try {
+        if (typeof aiChat === 'function') {
+          return await aiChat({ mode: 'reply', extraInstruction: `Intenção: ${context.intent}, Sentimento: ${context.sentiment}`, transcript: context.message, chatTitle: 'SmartBot' });
+        }
+        if (typeof bg === 'function') {
+          const resp = await bg('AI_CHAT', { messages: [{ role: 'system', content: 'Você é um assistente de atendimento inteligente.' }, { role: 'user', content: context.message }] });
+          return resp?.text || null;
+        }
+        return null;
+      } catch (error) { return null; }
+    }
+    
+    suggestResponse(decision, message, analysis) {
+      console.log('[SmartBot] 💡 Sugerindo resposta...');
+      this.metrics.assistedResponses++;
+      window.dispatchEvent(new CustomEvent('smartbot:suggestion', { detail: { message, analysis, suggestion: decision.response || 'Analise e responda.', confidence: decision.confidence || analysis.confidence } }));
+    }
+    
+    escalateToHuman(decision, message, analysis) {
+      console.log('[SmartBot] 🚨 Escalando para humano...');
+      window.dispatchEvent(new CustomEvent('smartbot:escalation', { detail: { message, analysis, reason: decision.reason, priority: decision.priority } }));
+    }
+    
+    queueMessage(decision, message, analysis) {
+      console.log('[SmartBot] 📥 Enfileirado:', decision.reason);
+      this.messageQueue.push({ message, analysis, decision, queuedAt: Date.now() });
+    }
+
+    selectAndAdjustResponse(responses, sentiment) {
+      const baseResponse = responses[Math.floor(Math.random() * responses.length)];
+      return this.adjustResponseBySentiment(baseResponse, sentiment.sentiment);
+    }
+    
+    adjustResponseBySentiment(response, sentimentType) {
+      if (!this.config.sentimentAdjustment) return response;
+      const adjustments = this.knowledge.sentimentResponses[sentimentType];
+      if (!adjustments) return response;
+      let adjusted = response;
+      if (adjustments.prefix.length > 0 && Math.random() > 0.5) {
+        const prefix = adjustments.prefix[Math.floor(Math.random() * adjustments.prefix.length)];
+        if (prefix && !adjusted.startsWith(prefix.trim())) adjusted = prefix + adjusted;
+      }
+      if (adjustments.suffix.length > 0) {
+        const addSuffix = adjustments.emojiFrequency === 'high' ? 0.8 : adjustments.emojiFrequency === 'medium' ? 0.5 : 0.2;
+        if (Math.random() < addSuffix) {
+          const suffix = adjustments.suffix[Math.floor(Math.random() * adjustments.suffix.length)];
+          if (suffix && !adjusted.endsWith(suffix.trim())) adjusted = adjusted + suffix;
+        }
+      }
+      return adjusted;
+    }
+
+    recordInteraction(message, response, type, analysis) {
+      if (this.config.learningEnabled) {
+        this.learnFromInteraction({ messageText: message.text, response, type, intent: analysis.intent.primaryIntent, sentiment: analysis.sentiment.sentiment, confidence: analysis.confidence, timestamp: Date.now() });
+      }
+    }
+    
+    learnFromInteraction(interaction) {
+      const existingPattern = this.knowledge.learnedPatterns.find(p => p.triggers.some(t => interaction.messageText.toLowerCase().includes(t.toLowerCase())));
+      if (existingPattern) {
+        existingPattern.occurrences = (existingPattern.occurrences || 0) + 1;
+        existingPattern.confidence = Math.min(95, existingPattern.confidence + 2);
+        existingPattern.lastUsed = Date.now();
+      } else if (interaction.type === 'auto' && interaction.confidence >= 80) {
+        const words = interaction.messageText.toLowerCase().split(/\s+/).filter(w => w.length > 3).slice(0, 5);
+        if (words.length >= 2) {
+          this.knowledge.learnedPatterns.push({ triggers: words, response: interaction.response, intent: interaction.intent, confidence: 70, occurrences: 1, createdAt: Date.now() });
+          console.log('[SmartBot] 📚 Padrão aprendido:', words);
+        }
+      }
+      if (this.knowledge.learnedPatterns.length > 200) {
+        this.knowledge.learnedPatterns.sort((a, b) => (b.occurrences * b.confidence) - (a.occurrences * a.confidence));
+        this.knowledge.learnedPatterns = this.knowledge.learnedPatterns.slice(0, 150);
+      }
+    }
+    
+    provideFeedback(messageId, feedbackType, correction = null) {
+      if (feedbackType === 'positive') this.knowledge.feedbackData.positive++;
+      else if (feedbackType === 'negative') this.knowledge.feedbackData.negative++;
+      if (correction) this.knowledge.feedbackData.corrections.push({ correction, timestamp: Date.now() });
+      console.log('[SmartBot] 📝 Feedback:', feedbackType);
+    }
+
+    updateConversationHistory(chatId, message, analysis) {
+      if (!this.knowledge.conversationHistory.has(chatId)) this.knowledge.conversationHistory.set(chatId, []);
+      const history = this.knowledge.conversationHistory.get(chatId);
+      history.push({ text: message.text, isOutgoing: message.isOutgoing, intent: analysis.intent.primaryIntent, sentiment: analysis.sentiment.sentiment, timestamp: Date.now() });
+      if (history.length > 20) history.shift();
+    }
+    
+    getConversationContext(chatId) {
+      const history = this.knowledge.conversationHistory.get(chatId) || [];
+      return history.slice(-5).map(h => `${h.isOutgoing ? 'EU' : 'CLIENTE'}: ${h.text?.slice(0, 100)}`);
+    }
+    
+    handleChatChange(data) { console.log('[SmartBot] 📱 Chat mudou:', data.chatTitle); }
+    handleTypingIndicator(data) { if (data.isTyping) console.log('[SmartBot] ⌨️ Digitando...'); }
+    
+    sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+    isBusinessHours() {
+      const now = new Date();
+      const hour = now.getHours();
+      const day = now.getDay();
+      return (day >= 1 && day <= 5 && hour >= 8 && hour < 20) || (day === 6 && hour >= 9 && hour < 14);
+    }
+    checkRateLimit() {
+      const oneHourAgo = Date.now() - 3600000;
+      const recent = this.metrics.responseTime.filter(t => t > oneHourAgo);
+      return recent.length < this.config.maxAutoResponsesPerHour;
+    }
+    updateMetrics(analysis) {
+      const intent = analysis.intent.primaryIntent;
+      this.metrics.intentDistribution[intent] = (this.metrics.intentDistribution[intent] || 0) + 1;
+      this.metrics.avgConfidence = (this.metrics.avgConfidence * (this.metrics.totalMessages - 1) + analysis.confidence) / this.metrics.totalMessages;
+    }
+
+    async loadKnowledge() {
+      return new Promise((resolve) => {
+        chrome.storage.local.get(['smartbot_knowledge'], (res) => {
+          if (res?.smartbot_knowledge) {
+            this.knowledge.learnedPatterns = res.smartbot_knowledge.learnedPatterns || [];
+            this.knowledge.feedbackData = res.smartbot_knowledge.feedbackData || this.knowledge.feedbackData;
+            console.log('[SmartBot] 📂 Carregado:', this.knowledge.learnedPatterns.length, 'padrões');
+          }
+          resolve();
+        });
+      });
+    }
+    
+    async saveKnowledge() {
+      return new Promise((resolve) => {
+        chrome.storage.local.set({ smartbot_knowledge: { learnedPatterns: this.knowledge.learnedPatterns, feedbackData: this.knowledge.feedbackData, savedAt: new Date().toISOString() } }, () => {
+          console.log('[SmartBot] 💾 Salvo');
+          resolve();
+        });
+      });
+    }
+
+    getStats() {
+      return { isActive: this.isActive, metrics: this.metrics, learnedPatterns: this.knowledge.learnedPatterns.length, feedbackScore: this.knowledge.feedbackData.positive - this.knowledge.feedbackData.negative, queueSize: this.messageQueue.length, config: this.config };
+    }
+    setConfig(newConfig) { this.config = { ...this.config, ...newConfig }; console.log('[SmartBot] ⚙️ Config atualizada'); }
+    addCustomIntent(intentName, config) {
+      this.knowledge.intents[intentName] = { responses: config.responses || [], confidence: config.confidence || 70, autoSend: config.autoSend || false, priority: config.priority || 'medium', ...config };
+    }
+    addLearnedPattern(triggers, response, confidence = 80) {
+      this.knowledge.learnedPatterns.push({ triggers: Array.isArray(triggers) ? triggers : [triggers], response, confidence, occurrences: 0, createdAt: Date.now(), source: 'manual' });
+    }
+  }
+
+  // ============================================================
+  // INICIALIZAÇÃO DO SMARTBOT
+  // ============================================================
+
+  window.smartbot = null;
+
+  window.initSmartBot = async () => {
+    if (!window.wa || !window.wa.helper || !window.wa.textMonitor) {
+      console.error('[SmartBot] Dependências não encontradas');
+      return null;
+    }
+    
+    const bot = new SmartBotIA(window.wa.helper, window.wa.textMonitor);
+    await bot.initialize();
+    window.smartbot = bot;
+    
+    window.wa.smartbot = {
+      iniciar: (options) => bot.start(options),
+      parar: () => bot.stop(),
+      status: () => bot.getStats(),
+      config: (cfg) => bot.setConfig(cfg),
+      feedback: (msgId, type, correction) => bot.provideFeedback(msgId, type, correction),
+      addIntent: (name, cfg) => bot.addCustomIntent(name, cfg),
+      addPattern: (triggers, response, confidence) => bot.addLearnedPattern(triggers, response, confidence),
+      salvar: () => bot.saveKnowledge(),
+      carregar: () => bot.loadKnowledge()
+    };
+    
+    console.log(`
+╔═══════════════════════════════════════════════════════════╗
+║          SMARTBOT IA - SISTEMA INTELIGENTE 🧠             ║
+╚═══════════════════════════════════════════════════════════╝
+
+🎮 COMANDOS:
+wa.smartbot.iniciar()
+wa.smartbot.iniciar({ autoResponseEnabled: true })
+wa.smartbot.parar()
+wa.smartbot.status()
+wa.smartbot.config({ confidenceThreshold: 80 })
+wa.smartbot.feedback(msgId, 'positive')
+wa.smartbot.addIntent('preco', { responses: ['R$99'], autoSend: true })
+wa.smartbot.addPattern(['quanto custa'], 'Nossos preços começam em R$99!')
+wa.smartbot.salvar()
+
+🚀 Execute wa.smartbot.iniciar() para ativar!
+`);
+    
+    return bot;
+  };
+
+  setTimeout(() => {
+    if (window.wa && window.wa.helper) window.initSmartBot();
+  }, 3000);
+
 })();
