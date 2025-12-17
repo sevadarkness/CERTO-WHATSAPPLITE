@@ -31,11 +31,24 @@ export {
   FeedbackAnalyzer 
 } from './learning/learning-system.js';
 
+// Analytics
+export { AnalyticsManager } from './analytics/analytics-manager.js';
+
 // Security
 export { PermissionManager } from './security/permission-manager.js';
 
+// Communication
+export { WebhookManager } from './communication/webhook-manager.js';
+export { NotificationManager } from './communication/notification-manager.js';
+
 // Dialog
 export { DialogManager } from './dialog/dialog-manager.js';
+
+// I18n
+export { LocaleManager } from './i18n/locale-manager.js';
+
+// Plugins
+export { PluginManager, MiddlewareManager } from './plugins/plugin-manager.js';
 
 /**
  * Versão do SmartBot
@@ -50,7 +63,8 @@ export const SMARTBOT_INFO = {
   version: SMARTBOT_VERSION,
   description: 'Sistema inteligente de automação e processamento de linguagem natural',
   modules: [
-    'Core', 'Infrastructure', 'NLP', 'Learning', 'Security', 'Dialog'
+    'Core', 'Infrastructure', 'NLP', 'Learning', 'Analytics', 
+    'Security', 'Communication', 'Dialog', 'I18n', 'Plugins'
   ],
   features: [
     'Processamento de Linguagem Natural',
@@ -61,7 +75,13 @@ export const SMARTBOT_INFO = {
     'Cache Otimizado',
     'Rate Limiting',
     'Sistema de Permissões',
-    'Agendamento de Tarefas'
+    'Agendamento de Tarefas',
+    'Analytics e Métricas',
+    'Webhooks com Retry',
+    'Notificações Multi-canal',
+    'Internacionalização',
+    'Sistema de Plugins',
+    'Pipeline de Middleware'
   ]
 };
 
