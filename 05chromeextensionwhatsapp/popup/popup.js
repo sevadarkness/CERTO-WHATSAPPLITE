@@ -49,6 +49,10 @@ async function load() {
 
   const st = resp?.settings || {};
 
+  // API Key
+  el("openaiApiKey").value = st.openaiApiKey || "";
+  updateApiStatus(st.openaiApiKey);
+
   // Chatbot
   el("persona").value = st.persona || "";
   el("businessContext").value = st.businessContext || "";
@@ -75,6 +79,9 @@ async function saveSettings() {
   setStatus("Salvando…", true);
 
   const settings = {
+    // API Key
+    openaiApiKey: el("openaiApiKey").value.trim(),
+    
     // Chatbot
     persona: el("persona").value,
     businessContext: el("businessContext").value,
@@ -90,11 +97,95 @@ async function saveSettings() {
   };
 
   const resp = await send("SAVE_SETTINGS", { settings });
-  if (resp?.ok) setStatus("Salvo ✅", true);
-  else setStatus(resp?.error || "Falha ao salvar", false);
+  if (resp?.ok) {
+    setStatus("Salvo ✅", true);
+    updateApiStatus(settings.openaiApiKey);
+  } else {
+    setStatus(resp?.error || "Falha ao salvar", false);
+  }
 }
 
 el("save").addEventListener("click", saveSettings);
+
+// -------------------------
+// API Key Functions
+// -------------------------
+function updateApiStatus(apiKey) {
+  const statusEl = el("apiStatus");
+  const indicatorEl = el("apiStatusIndicator");
+  const textEl = el("apiStatusText");
+  
+  if (!apiKey || apiKey.trim() === "") {
+    indicatorEl.textContent = "⚪";
+    textEl.textContent = "Chave não configurada";
+    statusEl.classList.remove("connected");
+  } else if (apiKey.startsWith("sk-")) {
+    indicatorEl.textContent = "🟢";
+    textEl.textContent = "Chave configurada";
+    statusEl.classList.add("connected");
+  } else {
+    indicatorEl.textContent = "🟡";
+    textEl.textContent = "Formato de chave inválido";
+    statusEl.classList.remove("connected");
+  }
+}
+
+el("toggleApiKeyVisibility").addEventListener("click", () => {
+  const input = el("openaiApiKey");
+  const btn = el("toggleApiKeyVisibility");
+  
+  if (input.type === "password") {
+    input.type = "text";
+    btn.textContent = "🙈";
+  } else {
+    input.type = "password";
+    btn.textContent = "👁️";
+  }
+});
+
+el("openaiApiKey").addEventListener("input", (e) => {
+  updateApiStatus(e.target.value);
+});
+
+el("testApiKey").addEventListener("click", async () => {
+  const apiKey = el("openaiApiKey").value.trim();
+  
+  if (!apiKey) {
+    setStatus("❌ Digite uma chave API primeiro", false);
+    return;
+  }
+  
+  if (!apiKey.startsWith("sk-")) {
+    setStatus("❌ Formato de chave inválido (deve começar com 'sk-')", false);
+    return;
+  }
+  
+  setStatus("Testando conexão...", true);
+  const indicatorEl = el("apiStatusIndicator");
+  const textEl = el("apiStatusText");
+  
+  try {
+    const response = await send("AI_CHAT", {
+      apiKey: apiKey,
+      messages: [{ role: "user", content: "Teste" }],
+      maxTokens: 10
+    });
+    
+    if (response?.ok && response?.text) {
+      indicatorEl.textContent = "🟢";
+      textEl.textContent = "Conexão bem-sucedida!";
+      setStatus("✅ Conexão com OpenAI estabelecida com sucesso!", true);
+    } else {
+      indicatorEl.textContent = "🔴";
+      textEl.textContent = "Erro na conexão";
+      setStatus("❌ Erro: " + (response?.error || "Falha na comunicação"), false);
+    }
+  } catch (e) {
+    indicatorEl.textContent = "🔴";
+    textEl.textContent = "Erro na conexão";
+    setStatus("❌ Erro ao testar: " + (e.message || e), false);
+  }
+});
 
 // -------------------------
 // Copilot Mode Functions
@@ -254,8 +345,17 @@ function addTeamMember() {
     return;
   }
   
-  if (phone.length < 10) {
-    setStatus("Número inválido (mínimo 10 dígitos)", false);
+  // Validate phone number length considering international formats
+  // 10-11 digits: local/national format
+  // 12-15 digits: international format with country code
+  if (phone.length < 10 || phone.length > 15) {
+    setStatus("Número inválido (10-15 dígitos esperados)", false);
+    return;
+  }
+  
+  // Check for duplicate phone numbers
+  if (teamMembers.some(m => m.phone === phone)) {
+    setStatus("Número já cadastrado", false);
     return;
   }
   
@@ -342,11 +442,24 @@ function renderTeamMembers(members) {
 }
 
 function formatPhone(phone) {
+  // Handle different phone number formats
   if (phone.length === 13) {
+    // International format: +55 11 99999-9999 (Brazil)
     return phone.replace(/(\d{2})(\d{2})(\d{5})(\d{4})/, '+$1 ($2) $3-$4');
+  } else if (phone.length === 12) {
+    // International format: +1 234 567-8901 (USA/Canada)
+    return phone.replace(/(\d{1})(\d{3})(\d{3})(\d{4})/, '+$1 ($2) $3-$4');
   } else if (phone.length === 11) {
+    // National format: (11) 99999-9999
     return phone.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+  } else if (phone.length === 10) {
+    // National format: (11) 9999-9999
+    return phone.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+  } else if (phone.length >= 14) {
+    // Very long international format - show country code + rest
+    return phone.replace(/(\d{2})(\d+)/, '+$1 $2');
   }
+  // Fallback: just return as-is if format unknown
   return phone;
 }
 

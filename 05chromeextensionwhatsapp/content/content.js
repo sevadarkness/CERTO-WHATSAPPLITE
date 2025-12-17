@@ -24,8 +24,8 @@
   // Utils & Debug
   // -------------------------
   // DEBUG_MODE: Set to true for troubleshooting DOM automation issues
-  // NOTE: In production, consider setting to false to reduce console noise
-  const DEBUG_MODE = true;
+  // NOTE: Set to false in production to reduce console noise
+  const DEBUG_MODE = false;
   
   const log = (...args) => console.log('[WhatsHybrid Lite]', ...args);
   const warn = (...args) => console.warn('[WhatsHybrid Lite]', ...args);
@@ -900,6 +900,10 @@
     
     debugLog('✅ Caixa de busca encontrada:', box);
 
+    // Ensure WhatsApp Web main tab is focused
+    window.focus();
+    await sleep(100);
+
     // Limpar busca anterior
     debugLog('Limpando busca anterior...');
     box.focus();
@@ -965,18 +969,47 @@
       debugLog('Erro ao limpar busca (não crítico):', e);
     }
 
-    // Verificar se composer apareceu
-    debugLog('Verificando se composer apareceu...');
-    for (let i = 0; i < 20; i++) {
-      await sleep(300);
-      if (findComposer()) {
-        debugLog('✅ Chat aberto com sucesso (composer encontrado)');
-        return true;
+    // Configuration: validation parameters
+    const MAX_COMPOSER_CHECK_ATTEMPTS = 20;
+    const COMPOSER_CHECK_DELAY_MS = 300;
+    const VALIDATION_SKIP_THRESHOLD = 15; // Skip validation after this many attempts
+    const PHONE_SUFFIX_MATCH_LENGTH = 8;  // Match last 8 digits for validation
+    
+    // Verificar se composer apareceu E se estamos no chat correto
+    debugLog('Verificando se composer apareceu e chat está correto...');
+    for (let i = 0; i < MAX_COMPOSER_CHECK_ATTEMPTS; i++) {
+      await sleep(COMPOSER_CHECK_DELAY_MS);
+      const composer = findComposer();
+      if (composer) {
+        // Verify we're in the correct chat by checking header/title
+        // This helps prevent sending to wrong chat if another tab was focused
+        const currentTitle = getChatTitle();
+        const titleDigits = currentTitle.replace(/\D/g, '');
+        
+        // Check if current chat contains the target digits
+        // We match the last N digits to handle international prefixes flexibly
+        const isCorrectChat = titleDigits.includes(digits.slice(-PHONE_SUFFIX_MATCH_LENGTH)) || 
+                             digits.includes(titleDigits.slice(-PHONE_SUFFIX_MATCH_LENGTH)) ||
+                             titleDigits === digits;
+        
+        // Skip validation after threshold to avoid infinite waiting
+        // This is a fallback in case chat title doesn't include phone number
+        if (isCorrectChat || i > VALIDATION_SKIP_THRESHOLD) {
+          debugLog('✅ Chat aberto com sucesso (composer encontrado)');
+          debugLog('   Chat title:', currentTitle);
+          debugLog('   Target digits:', digits);
+          if (!isCorrectChat) {
+            debugLog('   ⚠️ Validation skipped after threshold - proceeding with caution');
+          }
+          return true;
+        }
+        
+        debugLog(`⚠️ Chat aberto mas título não corresponde (${currentTitle} vs ${digits}), tentando novamente...`);
       }
     }
     
-    debugLog('❌ Chat não abriu (composer não encontrado após 20 tentativas)');
-    throw new Error('Chat não abriu (composer não encontrado).');
+    debugLog('❌ Chat não abriu ou não corresponde ao número correto');
+    throw new Error('Chat não abriu (composer não encontrado ou chat incorreto).');
   }
 
   // -------------------------
@@ -3810,10 +3843,89 @@ ${transcript || '(não consegui ler mensagens)'}
     }
   }
 
+  // -------------------------
+  // Quick Replies Listener
+  // -------------------------
+  let quickRepliesListener = null;
+
+  async function initQuickRepliesListener() {
+    // Prevent multiple listeners
+    if (quickRepliesListener) return;
+
+    quickRepliesListener = async (event) => {
+      // Only listen for Enter key
+      if (event.key !== 'Enter' || event.shiftKey || event.ctrlKey) return;
+
+      try {
+        const composer = findComposer();
+        if (!composer) return;
+
+        const text = (composer.textContent || composer.innerText || '').trim();
+        
+        // Check if text starts with /
+        if (!text.startsWith('/')) return;
+
+        // Get quick replies from settings
+        const settings = await getSettingsCached();
+        const quickReplies = settings.quickReplies || [];
+        
+        if (!quickReplies.length) return;
+
+        // Extract trigger (remove leading /)
+        const trigger = text.substring(1).toLowerCase().trim();
+        
+        // Find matching quick reply
+        const match = quickReplies.find(qr => 
+          qr.trigger && qr.trigger.toLowerCase() === trigger
+        );
+
+        if (match && match.response) {
+          // Prevent default Enter behavior
+          event.preventDefault();
+          event.stopPropagation();
+
+          debugLog('Quick reply matched:', trigger, '→', match.response.slice(0, 50));
+
+          // Clear composer properly using same methods as insertIntoComposer
+          composer.focus();
+          try {
+            document.execCommand('selectAll', false, null);
+            document.execCommand('delete', false, null);
+            composer.dispatchEvent(new InputEvent('input', { bubbles: true }));
+          } catch (e) {
+            // Fallback to direct manipulation if execCommand fails
+            composer.textContent = '';
+            composer.dispatchEvent(new InputEvent('input', { bubbles: true }));
+          }
+          await sleep(100);
+
+          // Insert quick reply response
+          await insertIntoComposer(match.response, false, false);
+          await sleep(200);
+
+          // Optional: auto-send (can be enabled with a setting later)
+          // await clickSend(false);
+          
+          debugLog('✅ Quick reply inserted successfully');
+        }
+      } catch (e) {
+        debugLog('Quick reply error:', e);
+      }
+    };
+
+    // Add listener to document
+    document.addEventListener('keydown', quickRepliesListener, true);
+    debugLog('✅ Quick replies listener initialized');
+  }
+
   // Mount when possible (document_start friendly)
   function boot() {
     try {
       mount();
+      // Initialize quick replies listener after a short delay
+      setTimeout(() => {
+        initQuickRepliesListener();
+      }, 2000);
     } catch (e) {
       warn('Falha ao montar painel:', e);
     }

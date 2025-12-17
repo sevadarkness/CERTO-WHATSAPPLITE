@@ -10,10 +10,11 @@
   "host_permissions": [
     "https://web.whatsapp.com/*",
     "https://api.openai.com/*",
-    "https://*/*",
-    "http://localhost:*/*",
-    "http://127.0.0.1:*/*"
+    "https://adm.redealabama.com/*"
   ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
   "background": {
     "service_worker": "background/serviceWorker.js",
     "type": "module"
