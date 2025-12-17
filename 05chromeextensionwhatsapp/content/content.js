@@ -72,6 +72,15 @@
     });
   }
 
+  // FIX 1: Move applyVars to global scope (was inside mount() at line 2716)
+  // Used by executeDomCampaignDirectly() which is outside mount()
+  function applyVars(msg, entry) {
+    let out = safeText(msg);
+    out = out.replaceAll('{{nome}}', entry.name || '');
+    out = out.replaceAll('{{numero}}', entry.number || '');
+    return out;
+  }
+
   // -------------------------
   // Smart Cache System
   // -------------------------
@@ -778,13 +787,16 @@
     debugLog('Iniciando envio de mídia...');
     
     // 1. Encontrar botão de anexo com múltiplos seletores
+    // FIX 2: Updated selectors for WhatsApp Web 2024/2025
     const attachSelectors = [
-      'span[data-icon="plus"]',
-      'span[data-icon="attach-menu-plus"]', 
-      'span[data-icon="clip"]',
-      '[data-testid="attach-menu-plus"]',
-      'button[aria-label*="Anexar"]',
-      'button[title*="Anexar"]'
+      'button[aria-label="Anexar"]',           // NEW - Working selector 2024/2025
+      'span[data-icon="plus-rounded"]',        // NEW - Working selector 2024/2025
+      'footer button[aria-label*="Anexar"]',   // Fallback
+      'footer button[title*="Anexar"]',        // Fallback
+      'span[data-icon="plus"]',                // Legacy
+      'span[data-icon="attach-menu-plus"]',    // Legacy
+      'span[data-icon="clip"]',                // Legacy
+      '[data-testid="attach-menu-plus"]'       // Legacy
     ];
     
     let attachBtn = null;
@@ -802,9 +814,13 @@
     if (!attachBtn) throw new Error('Botão de anexo não encontrado.');
 
     attachBtn.click();
-    await sleep(800); // Aumentar tempo para menu abrir
+    await sleep(1000); // FIX 3: Increased from 800ms to 1000ms
 
-    // 2. Encontrar input de arquivo
+    // Aguardar menu de anexo aparecer
+    await sleep(500);
+
+    // 2. Encontrar input de arquivo com retry logic
+    // FIX 3: Improved robustness with multiple retry attempts
     const inputSelectors = [
       'input[type="file"][accept*="image"]',
       'input[type="file"][accept*="video"]',
@@ -812,12 +828,16 @@
     ];
     
     let input = null;
-    for (const sel of inputSelectors) {
-      input = document.querySelector(sel);
-      if (input && input.isConnected) {
-        debugLog('Input de arquivo encontrado:', sel);
-        break;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      for (const sel of inputSelectors) {
+        input = document.querySelector(sel);
+        if (input && input.isConnected) {
+          debugLog('Input de arquivo encontrado:', sel, 'na tentativa', attempt + 1);
+          break;
+        }
       }
+      if (input) break;
+      await sleep(300);
     }
     
     if (!input) throw new Error('Input de arquivo não encontrado.');
@@ -2713,12 +2733,7 @@ ${transcript || '(não consegui ler mensagens)'}
       return Array.from(map.values());
     }
 
-    function applyVars(msg, entry) {
-      let out = safeText(msg);
-      out = out.replaceAll('{{nome}}', entry.name || '');
-      out = out.replaceAll('{{numero}}', entry.number || '');
-      return out;
-    }
+    // applyVars moved to global scope (after line 73) - FIX 1
 
     function renderCampMode() {
       const m = campMode.value;
