@@ -80,6 +80,77 @@ body{
   box-shadow: 0 20px 65px rgba(0,0,0,.50);
 }
 
+/* FIX 8: UX Premium */
+.card-highlight {
+  background: linear-gradient(135deg, rgba(139,92,246,0.15), rgba(59,130,246,0.1));
+  border: 1px solid rgba(139,92,246,0.3);
+}
+
+.field-group {
+  margin: 12px 0;
+}
+
+.label-large {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  display: block;
+  color: var(--text);
+}
+
+.input-large {
+  font-size: 14px;
+  padding: 12px;
+}
+
+.toggle-section {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.toggle-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(5,7,15,0.4);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.toggle-card:hover {
+  background: rgba(5,7,15,0.6);
+  border-color: rgba(139,92,246,0.3);
+}
+
+.toggle-card input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.toggle-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.toggle-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.toggle-hint {
+  font-size: 11px;
+  color: var(--muted);
+}
+
 .cardTitle{
   font-size: 13px;
   font-weight: 700;
