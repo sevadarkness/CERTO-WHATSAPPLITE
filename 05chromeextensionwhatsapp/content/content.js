@@ -3810,10 +3810,80 @@ ${transcript || '(não consegui ler mensagens)'}
     }
   }
 
+  // -------------------------
+  // Quick Replies Listener
+  // -------------------------
+  let quickRepliesListener = null;
+
+  async function initQuickRepliesListener() {
+    // Prevent multiple listeners
+    if (quickRepliesListener) return;
+
+    quickRepliesListener = async (event) => {
+      // Only listen for Enter key
+      if (event.key !== 'Enter' || event.shiftKey || event.ctrlKey) return;
+
+      try {
+        const composer = findComposer();
+        if (!composer) return;
+
+        const text = (composer.textContent || composer.innerText || '').trim();
+        
+        // Check if text starts with /
+        if (!text.startsWith('/')) return;
+
+        // Get quick replies from settings
+        const settings = await getSettingsCached();
+        const quickReplies = settings.quickReplies || [];
+        
+        if (!quickReplies.length) return;
+
+        // Extract trigger (remove leading /)
+        const trigger = text.substring(1).toLowerCase().trim();
+        
+        // Find matching quick reply
+        const match = quickReplies.find(qr => 
+          qr.trigger && qr.trigger.toLowerCase() === trigger
+        );
+
+        if (match && match.response) {
+          // Prevent default Enter behavior
+          event.preventDefault();
+          event.stopPropagation();
+
+          debugLog('Quick reply matched:', trigger, '→', match.response.slice(0, 50));
+
+          // Clear composer
+          composer.textContent = '';
+          await sleep(100);
+
+          // Insert quick reply response
+          await insertIntoComposer(match.response, false, false);
+          await sleep(200);
+
+          // Optional: auto-send (can be enabled with a setting later)
+          // await clickSend(false);
+          
+          debugLog('✅ Quick reply inserted successfully');
+        }
+      } catch (e) {
+        debugLog('Quick reply error:', e);
+      }
+    };
+
+    // Add listener to document
+    document.addEventListener('keydown', quickRepliesListener, true);
+    debugLog('✅ Quick replies listener initialized');
+  }
+
   // Mount when possible (document_start friendly)
   function boot() {
     try {
       mount();
+      // Initialize quick replies listener after a short delay
+      setTimeout(() => {
+        initQuickRepliesListener();
+      }, 2000);
     } catch (e) {
       warn('Falha ao montar painel:', e);
     }

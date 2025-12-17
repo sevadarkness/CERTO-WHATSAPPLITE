@@ -345,8 +345,17 @@ function addTeamMember() {
     return;
   }
   
-  if (phone.length < 10) {
-    setStatus("Número inválido (mínimo 10 dígitos)", false);
+  // Validate phone number length considering international formats
+  // 10-11 digits: local/national format
+  // 12-15 digits: international format with country code
+  if (phone.length < 10 || phone.length > 15) {
+    setStatus("Número inválido (10-15 dígitos esperados)", false);
+    return;
+  }
+  
+  // Check for duplicate phone numbers
+  if (teamMembers.some(m => m.phone === phone)) {
+    setStatus("Número já cadastrado", false);
     return;
   }
   
@@ -433,10 +442,22 @@ function renderTeamMembers(members) {
 }
 
 function formatPhone(phone) {
+  // Handle different phone number formats
   if (phone.length === 13) {
+    // International format: +55 11 99999-9999
     return phone.replace(/(\d{2})(\d{2})(\d{5})(\d{4})/, '+$1 ($2) $3-$4');
+  } else if (phone.length === 12) {
+    // International format without Brazil: +1 999 999-9999
+    return phone.replace(/(\d{1,3})(\d{3})(\d{3})(\d{4})/, '+$1 $2 $3-$4');
   } else if (phone.length === 11) {
+    // National format: (11) 99999-9999
     return phone.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+  } else if (phone.length === 10) {
+    // National format: (11) 9999-9999
+    return phone.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+  } else if (phone.length >= 14) {
+    // Very long international format
+    return phone.replace(/(\d{2})(\d+)/, '+$1 $2');
   }
   return phone;
 }
